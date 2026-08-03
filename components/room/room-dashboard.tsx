@@ -1,0 +1,324 @@
+"use client";
+
+import { useCallback, useRef, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { motion, AnimatePresence } from "motion/react";
+
+import { fetchJson } from "@/lib/fetcher";
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
+import { useRoomEvents } from "@/hooks/use-room-events";
+import type { RoomEvent, RoomMember, RoomSnapshot } from "@/types/rooms";
+import { FilesPanel } from "@/components/room/files-panel";
+import { QuickTextPanel } from "@/components/room/quick-text-panel";
+import { RoomHeader } from "@/components/room/room-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+
+export function RoomDashboard({
+  initialSnapshot,
+  currentUser,
+}: {
+  initialSnapshot: RoomSnapshot;
+  currentUser: RoomMember;
+}) {
+  const router = useRouter();
+  const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [textValue, setTextValue] = useState(initialSnapshot.text.value);
+  const [activeTab, setActiveTab] = useState<"text" | "files">("text");
+  const isOwner = initialSnapshot.room.ownerId === currentUser.id;
+
+  const textValueRef = useRef(initialSnapshot.text.value);
+  const saveSequenceRef = useRef(0);
+  const lastAckedSaveRef = useRef(0);
+  const lastRemoteTextRef = useRef(initialSnapshot.text.value);
+  const localRevisionRef = useRef(0);
+  const remoteRevisionRef = useRef(0);
+
+  const persistText = useDebouncedCallback(async (nextText: string, revision: number) => {
+    const saveId = ++saveSequenceRef.current;
+
+    try {
+      await fetchJson(`/api/rooms/${initialSnapshot.room.id}/text`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: nextText }),
+      });
+
+      if (saveId > lastAckedSaveRef.current) {
+        lastAckedSaveRef.current = saveId;
+      }
+
+      if (revision >= remoteRevisionRef.current) {
+        remoteRevisionRef.current = revision;
+        lastRemoteTextRef.current = nextText;
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to save text.");
+    }
+  }, 500);
+
+  const handleEvent = useCallback((event: RoomEvent) => {
+    setSnapshot((previous) => {
+      switch (event.type) {
+        case "text.updated": {
+          const incomingValue = event.payload.value;
+          const localValue = textValueRef.current;
+          const localChangedSinceRemote = localValue !== lastRemoteTextRef.current;
+
+          lastRemoteTextRef.current = incomingValue;
+
+          if (!localChangedSinceRemote || incomingValue === localValue) {
+            remoteRevisionRef.current = localRevisionRef.current;
+            textValueRef.current = incomingValue;
+            setTextValue(incomingValue);
+          }
+
+          return { ...previous, text: event.payload };
+        }
+        case "file.created":
+          return previous.files.some((file) => file.id === event.payload.file.id)
+            ? previous
+            : { ...previous, files: [event.payload.file, ...previous.files] };
+        case "file.renamed":
+          return {
+            ...previous,
+            files: previous.files.map((file) =>
+              file.id === event.payload.fileId ? { ...file, fileName: event.payload.fileName } : file,
+            ),
+          };
+        case "file.deleted":
+          return {
+            ...previous,
+            files: previous.files.filter((file) => file.id !== event.payload.fileId),
+          };
+        case "room.cleared":
+          remoteRevisionRef.current = localRevisionRef.current;
+          lastRemoteTextRef.current = "";
+          textValueRef.current = "";
+          setTextValue("");
+          return {
+            ...previous,
+            text: {
+              ...previous.text,
+              value: "",
+            },
+            files: [],
+          };
+        case "member.joined":
+          return previous.members.some((member) => member.id === event.payload.member.id)
+            ? previous
+            : { ...previous, members: [...previous.members, event.payload.member] };
+        case "member.left":
+          return {
+            ...previous,
+            members: previous.members.filter((member) => member.id !== event.payload.member.id),
+          };
+        default:
+          return previous;
+      }
+    });
+  }, []);
+
+  useRoomEvents(initialSnapshot.room.id, handleEvent);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "1") {
+        event.preventDefault();
+        setActiveTab("text");
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === "2") {
+        event.preventDefault();
+        setActiveTab("files");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  function handleTextChange(nextValue: string) {
+    textValueRef.current = nextValue;
+    setTextValue(nextValue);
+    localRevisionRef.current += 1;
+    persistText(nextValue, localRevisionRef.current);
+  }
+
+  async function handleCopyText() {
+    await navigator.clipboard.writeText(textValueRef.current);
+    toast.success("Text copied.");
+  }
+
+  function handleClearText() {
+    handleTextChange("");
+  }
+
+  async function handleLeaveRoom() {
+    try {
+      await fetchJson(`/api/rooms/${initialSnapshot.room.id}/membership`, {
+        method: "DELETE",
+      });
+      toast.success("You left the room.");
+      router.push("/welcome");
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to leave room.");
+    }
+  }
+
+  async function handleClearSession() {
+    try {
+      await fetchJson(`/api/rooms/${initialSnapshot.room.id}/clear`, {
+        method: "POST",
+      });
+      remoteRevisionRef.current = localRevisionRef.current;
+      lastRemoteTextRef.current = "";
+      textValueRef.current = "";
+      setTextValue("");
+      setSnapshot((previous) => ({
+        ...previous,
+        text: { ...previous.text, value: "" },
+        files: [],
+      }));
+      toast.success("Room cleared.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to clear the room.");
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-background flex flex-col justify-stretch">
+      <div className="mx-auto flex w-full max-w-3xl flex-col flex-1 px-4 py-6 sm:px-6 lg:py-8 justify-start">
+        <RoomHeader
+          room={snapshot.room}
+          members={snapshot.members}
+          currentUser={currentUser}
+          isOwner={isOwner}
+          onLeave={handleLeaveRoom}
+        />
+
+        <div className="flex flex-col flex-1 mt-6">
+          {/* Tab Navigation Segmented Bar */}
+          <div className="flex items-center justify-between border-b border-border pb-px">
+            <div className="flex gap-5 relative">
+              <button
+                onClick={() => setActiveTab("text")}
+                className={`pb-2.5 text-xs font-semibold tracking-wider uppercase transition-colors relative cursor-pointer ${
+                  activeTab === "text" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Text
+                {activeTab === "text" && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab("files")}
+                className={`pb-2.5 text-xs font-semibold tracking-wider uppercase transition-colors relative cursor-pointer ${
+                  activeTab === "files" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Files
+                {activeTab === "files" && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </button>
+            </div>
+
+            {/* Clear Room button */}
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button variant="ghost" size="xs" className="text-muted-foreground hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 gap-1.5" />}>
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Clear room
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-lg max-w-sm">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-sm font-semibold">Clear this room?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-xs text-muted-foreground">
+                    This removes all files and shared text for everyone currently connected.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="mt-4 gap-1.5">
+                  <AlertDialogCancel className="h-8 text-xs">Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearSession} className="h-8 text-xs bg-destructive text-white hover:bg-destructive/90">
+                    Clear room
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
+          {/* Smooth animated panel display */}
+          <div className="flex-1 flex flex-col justify-stretch py-2 min-h-0">
+            <AnimatePresence mode="wait">
+              {activeTab === "text" ? (
+                <motion.div
+                  key="text-tab"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15, ease: "easeInOut" }}
+                  className="flex-1 flex flex-col"
+                >
+                  <QuickTextPanel
+                    value={textValue}
+                    onChange={handleTextChange}
+                    onCopy={handleCopyText}
+                    onClear={handleClearText}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="files-tab"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15, ease: "easeInOut" }}
+                  className="flex-1 flex flex-col"
+                >
+                  <FilesPanel
+                    roomId={snapshot.room.id}
+                    files={snapshot.files}
+                    onFileRename={(fileId, fileName) =>
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files: previous.files.map((file) =>
+                          file.id === fileId ? { ...file, fileName } : file,
+                        ),
+                      }))
+                    }
+                    onFileDelete={(fileId) =>
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files: previous.files.filter((file) => file.id !== fileId),
+                      }))
+                    }
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
