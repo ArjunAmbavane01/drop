@@ -103,6 +103,21 @@ export function RoomDashboard({
             ...previous,
             files: previous.files.filter((file) => file.id !== event.payload.fileId),
           };
+        case "folder.renamed":
+          return {
+            ...previous,
+            files: previous.files.map((file) =>
+              file.uploadId === event.payload.uploadId
+                ? { ...file, uploadName: event.payload.name }
+                : file,
+            ),
+          };
+        case "folder.deleted":
+          return {
+            ...previous,
+            files: previous.files.filter((file) => file.uploadId !== event.payload.uploadId),
+          };
+
         case "room.cleared":
           remoteRevisionRef.current = localRevisionRef.current;
           lastRemoteTextRef.current = "";
@@ -312,7 +327,22 @@ export function RoomDashboard({
                         files: previous.files.filter((file) => file.id !== fileId),
                       }))
                     }
+                    onFolderRename={(uploadId, name) =>
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files: previous.files.map((file) =>
+                          file.uploadId === uploadId ? { ...file, uploadName: name } : file,
+                        ),
+                      }))
+                    }
+                    onFolderDelete={(uploadId) =>
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files: previous.files.filter((file) => file.uploadId !== uploadId),
+                      }))
+                    }
                   />
+
                 </motion.div>
               )}
             </AnimatePresence>

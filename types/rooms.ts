@@ -14,7 +14,10 @@ export type RoomFile = {
   uploadedAt: string;
   uploader: Pick<RoomMember, "id" | "name">;
   thumbnailUrl: string | null;
+  uploadId: string | null;
+  uploadName: string | null;
 };
+
 
 export type RoomSnapshot = {
   room: {
@@ -37,5 +40,8 @@ export type RoomEvent =
   | { id: number; type: "file.created"; payload: { file: RoomFile } }
   | { id: number; type: "file.renamed"; payload: { fileId: string; fileName: string } }
   | { id: number; type: "file.deleted"; payload: { fileId: string } }
+  | { id: number; type: "folder.renamed"; payload: { uploadId: string; name: string } }
+  | { id: number; type: "folder.deleted"; payload: { uploadId: string } }
   | { id: number; type: "room.cleared"; payload: Record<string, never> }
   | { id: number; type: "member.joined" | "member.left"; payload: { member: RoomMember } };
+

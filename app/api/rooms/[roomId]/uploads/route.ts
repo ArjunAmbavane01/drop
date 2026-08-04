@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
+
 import { getDb } from "@/db";
-import { files } from "@/db/schema";
+import { uploads, uploadedFiles } from "@/db/schema";
 import { env } from "@/lib/env";
 import { jsonError, jsonOk } from "@/lib/http";
 import { completeUploadSchema, createUploadSchema } from "@/lib/validators";
@@ -19,7 +21,13 @@ export async function POST(
 
     const json = await request.json();
     const input = createUploadSchema.parse(json);
-    const objectKey = `${roomId}/${crypto.randomUUID()}-${input.fileName}`;
+    
+    // For folder uploads, prefix with the shared uploadId.
+    // Otherwise, use the original random UUID prefix.
+    const objectKey = input.uploadId
+      ? `${roomId}/${input.uploadId}/${input.fileName}`
+      : `${roomId}/${crypto.randomUUID()}-${input.fileName}`;
+
     const uploadUrl = await createSignedUploadUrl(objectKey, input.contentType);
 
     return jsonOk({
@@ -50,11 +58,32 @@ export async function PUT(
       return jsonError("Uploaded object could not be verified.", 409);
     }
 
+    // If part of a folder upload, ensure the parent Upload record exists in the DB
+    if (input.uploadId) {
+      const [existingUpload] = await getDb()
+        .select()
+        .from(uploads)
+        .where(eq(uploads.id, input.uploadId))
+        .limit(1);
+
+      if (!existingUpload) {
+        await getDb()
+          .insert(uploads)
+          .values({
+            id: input.uploadId,
+            roomId,
+            uploaderId: session.user.id,
+            name: input.folderName || "Untitled Folder",
+          });
+      }
+    }
+
     const [file] = await getDb()
-      .insert(files)
+      .insert(uploadedFiles)
       .values({
         roomId,
         uploaderId: session.user.id,
+        uploadId: input.uploadId || null,
         objectKey: input.objectKey,
         fileName: input.fileName,
         contentType: objectMetadata.contentType ?? input.contentType,
@@ -77,6 +106,8 @@ export async function PUT(
         thumbnailUrl: file.contentType?.startsWith("image/")
           ? `${env.r2PublicBaseUrl}/${file.objectKey}`
           : null,
+        uploadId: file.uploadId,
+        uploadName: input.uploadId ? (input.folderName || "Untitled Folder") : null,
       },
     });
 
@@ -85,3 +116,4 @@ export async function PUT(
     return jsonError(error instanceof Error ? error.message : "Unable to finish upload.");
   }
 }
+

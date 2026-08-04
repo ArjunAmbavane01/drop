@@ -121,8 +121,8 @@ export const roomTexts = pgTable("room_texts", {
     .defaultNow(),
 });
 
-export const files = pgTable(
-  "files",
+export const uploads = pgTable(
+  "uploads",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     roomId: uuid("room_id")
@@ -131,6 +131,28 @@ export const files = pgTable(
     uploaderId: text("uploader_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    roomIdx: index("uploads_room_idx").on(table.roomId),
+  }),
+);
+
+export const uploadedFiles = pgTable(
+  "uploaded_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    uploaderId: text("uploader_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    uploadId: uuid("upload_id")
+      .references(() => uploads.id, { onDelete: "cascade" }),
     objectKey: text("object_key").notNull(),
     fileName: text("file_name").notNull(),
     contentType: text("content_type"),
@@ -140,10 +162,12 @@ export const files = pgTable(
       .defaultNow(),
   },
   (table) => ({
-    objectKeyIdx: uniqueIndex("files_object_key_idx").on(table.objectKey),
-    roomIdx: index("files_room_idx").on(table.roomId),
+    objectKeyIdx: uniqueIndex("uploaded_files_object_key_idx").on(table.objectKey),
+    roomIdx: index("uploaded_files_room_idx").on(table.roomId),
+    uploadIdx: index("uploaded_files_upload_idx").on(table.uploadId),
   }),
 );
+
 
 export const roomEvents = pgTable(
   "room_events",
@@ -168,6 +192,9 @@ export type RoomEventType =
   | "file.created"
   | "file.renamed"
   | "file.deleted"
+  | "folder.renamed"
+  | "folder.deleted"
   | "room.cleared"
   | "member.joined"
   | "member.left";
+

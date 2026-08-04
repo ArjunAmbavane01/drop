@@ -2,7 +2,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { getDb } from "@/db";
-import { files, roomMemberships, rooms, roomTexts, users } from "@/db/schema";
+import { uploads, uploadedFiles, roomMemberships, rooms, roomTexts, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import type { RoomSnapshot } from "@/types/rooms";
 
@@ -67,19 +67,22 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
 
   const fileRows = await getDb()
     .select({
-      id: files.id,
-      fileName: files.fileName,
-      contentType: files.contentType,
-      sizeBytes: files.sizeBytes,
-      objectKey: files.objectKey,
-      uploadedAt: files.uploadedAt,
+      id: uploadedFiles.id,
+      fileName: uploadedFiles.fileName,
+      contentType: uploadedFiles.contentType,
+      sizeBytes: uploadedFiles.sizeBytes,
+      objectKey: uploadedFiles.objectKey,
+      uploadedAt: uploadedFiles.uploadedAt,
       uploaderId: users.id,
       uploaderName: users.name,
+      uploadId: uploadedFiles.uploadId,
+      uploadName: uploads.name,
     })
-    .from(files)
-    .innerJoin(users, eq(users.id, files.uploaderId))
-    .where(eq(files.roomId, roomId))
-    .orderBy(desc(files.uploadedAt));
+    .from(uploadedFiles)
+    .innerJoin(users, eq(users.id, uploadedFiles.uploaderId))
+    .leftJoin(uploads, eq(uploads.id, uploadedFiles.uploadId))
+    .where(eq(uploadedFiles.roomId, roomId))
+    .orderBy(desc(uploadedFiles.uploadedAt));
 
   return {
     room,
@@ -103,6 +106,8 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
       thumbnailUrl: file.contentType?.startsWith("image/")
         ? `${env.r2PublicBaseUrl}/${file.objectKey}`
         : null,
+      uploadId: file.uploadId,
+      uploadName: file.uploadName,
     })),
   };
 }

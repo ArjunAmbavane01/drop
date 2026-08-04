@@ -41,6 +41,7 @@ export function WelcomeScreen({ userName }: { userName: string }) {
 
   async function handleJoin(formData: FormData) {
     setIsJoining(true);
+    console.log("here")
     try {
       const roomCode = String(formData.get("roomCode") ?? "");
       const data = await fetchJson<{ roomId: string }>("/api/rooms", {
@@ -112,7 +113,7 @@ export function WelcomeScreen({ userName }: { userName: string }) {
                 className="h-12 rounded-2xl uppercase"
               />
             </div>
-            <Button disabled={isJoining} variant="secondary" className="h-12 w-full rounded-2xl">
+            <Button type="submit" disabled={isJoining} variant="secondary" className="h-12 w-full rounded-2xl">
               {isJoining ? "Joining..." : "Join room"}
             </Button>
           </form>

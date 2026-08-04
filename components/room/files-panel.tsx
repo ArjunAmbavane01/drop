@@ -2,7 +2,18 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Download, FolderUp, Pencil, Trash2, Upload, File } from "lucide-react";
+import {
+  Download,
+  FolderUp,
+  Pencil,
+  Trash2,
+  Upload,
+  File,
+  ChevronRight,
+  Folder,
+  X,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -13,31 +24,159 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { getFileIcon } from "./file-icons";
 
 type UploadSignerResponse = { objectKey: string; uploadUrl: string };
 
-type UploadItem = {
+type UploadGroup = {
+  id: string; // uploadId for folders, random ID for files
+  name: string; // folder name or file name
+  type: "file" | "folder";
+  files: {
+    file: File;
+    relativePath: string; // relative path within folder or simple name
+  }[];
+};
+
+type UploadState = {
   id: string;
   name: string;
-  progress: number;
+  type: "file" | "folder";
   status: "uploading" | "complete" | "error";
+  progress: number;
+  totalBytes: number;
+  uploadedBytes: number;
+  error?: string;
+  activeRequests: XMLHttpRequest[];
+  group: UploadGroup;
 };
+
+// Tree node definition for folders
+interface TreeNode {
+  name: string;
+  relativePath: string;
+  type: "file" | "directory";
+  file?: RoomFile;
+  children: Record<string, TreeNode>;
+}
+
+// Group files and folders for flat list
+type FolderItem = {
+  type: "folder";
+  uploadId: string;
+  name: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  uploader: RoomFile["uploader"];
+  files: RoomFile[];
+};
+
+type FileItem = {
+  type: "file";
+  file: RoomFile;
+};
+
+type TopLevelItem = FolderItem | FileItem;
+
+function groupFilesAndFolders(files: RoomFile[]): TopLevelItem[] {
+  const foldersMap: Record<string, FolderItem> = {};
+  const items: TopLevelItem[] = [];
+
+  for (const file of files) {
+    if (file.uploadId) {
+      if (!foldersMap[file.uploadId]) {
+        foldersMap[file.uploadId] = {
+          type: "folder",
+          uploadId: file.uploadId,
+          name: file.uploadName || "Untitled Folder",
+          sizeBytes: 0,
+          uploadedAt: file.uploadedAt,
+          uploader: file.uploader,
+          files: [],
+        };
+      }
+      const folder = foldersMap[file.uploadId];
+      folder.files.push(file);
+      folder.sizeBytes += file.sizeBytes;
+      if (new Date(file.uploadedAt) > new Date(folder.uploadedAt)) {
+        folder.uploadedAt = file.uploadedAt;
+      }
+    } else {
+      items.push({
+        type: "file",
+        file,
+      });
+    }
+  }
+
+  for (const uploadId in foldersMap) {
+    items.push(foldersMap[uploadId]);
+  }
+
+  items.sort((a, b) => {
+    const timeA = new Date(a.type === "folder" ? a.uploadedAt : a.file.uploadedAt).getTime();
+    const timeB = new Date(b.type === "folder" ? b.uploadedAt : b.file.uploadedAt).getTime();
+    return timeB - timeA;
+  });
+
+  return items;
+}
+
+function buildTree(folderFiles: RoomFile[]): Record<string, TreeNode> {
+  const root: Record<string, TreeNode> = {};
+
+  for (const file of folderFiles) {
+    const parts = file.fileName.split("/");
+    let currentLevel = root;
+    let accumulatedPath = "";
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!part) continue;
+      accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
+      const isLast = i === parts.length - 1;
+
+      if (!currentLevel[part]) {
+        currentLevel[part] = {
+          name: part,
+          relativePath: accumulatedPath,
+          type: isLast ? "file" : "directory",
+          children: {},
+          file: isLast ? file : undefined,
+        };
+      }
+      currentLevel = currentLevel[part].children;
+    }
+  }
+
+  return root;
+}
 
 export function FilesPanel({
   roomId,
   files,
   onFileRename,
   onFileDelete,
+  onFolderRename,
+  onFolderDelete,
 }: {
   roomId: string;
   files: RoomFile[];
   onFileRename: (fileId: string, fileName: string) => void;
   onFileDelete: (fileId: string) => void;
+  onFolderRename: (uploadId: string, name: string) => void;
+  onFolderDelete: (uploadId: string) => void;
 }) {
   const [renameTarget, setRenameTarget] = useState<RoomFile | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  const [renameFolderTarget, setRenameFolderTarget] = useState<FolderItem | null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState("");
+
   const [isDragging, setIsDragging] = useState(false);
-  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [uploads, setUploads] = useState<UploadState[]>([]);
+  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const dragDepthRef = useRef(0);
@@ -47,7 +186,7 @@ export function FilesPanel({
       const clipboardFiles = Array.from(event.clipboardData?.files ?? []);
       if (clipboardFiles.length === 0) return;
       event.preventDefault();
-      await uploadFiles(clipboardFiles);
+      await handleUploadStart(clipboardFiles);
     }
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
@@ -60,100 +199,226 @@ export function FilesPanel({
     input.setAttribute("directory", "");
   }, []);
 
-  async function createUpload(file: File, pathName: string, itemId: string) {
-    const signed = await fetchJson<UploadSignerResponse>(`/api/rooms/${roomId}/uploads`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileName: pathName,
-        contentType: file.type || "application/octet-stream",
-        sizeBytes: file.size,
-      }),
-    });
-
-    await uploadWithProgress(file, signed.uploadUrl, itemId);
-
-    await fetchJson(`/api/rooms/${roomId}/uploads`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        objectKey: signed.objectKey,
-        fileName: pathName,
-        contentType: file.type || "application/octet-stream",
-        sizeBytes: file.size,
-      }),
-    });
-  }
-
-  async function uploadFiles(fileList: File[]) {
-    const validFiles = fileList.filter((file) => file.size >= 0);
-    if (validFiles.length === 0) return;
-
-    const items = validFiles.map((file) => ({
-      id: crypto.randomUUID(),
-      name: getFilePath(file),
-      progress: 0,
-      status: "uploading" as const,
+  function togglePath(path: string) {
+    setExpandedPaths((prev) => ({
+      ...prev,
+      [path]: !prev[path],
     }));
-
-    setUploads((previous) => [...items, ...previous].slice(0, 8));
-
-    await Promise.all(
-      validFiles.map(async (file, index) => {
-        const itemId = items[index].id;
-        const pathName = items[index].name;
-
-        try {
-          await createUpload(file, pathName, itemId);
-          setUploads((previous) =>
-            previous.map((item) =>
-              item.id === itemId ? { ...item, progress: 100, status: "complete" } : item,
-            ),
-          );
-        } catch (error) {
-          setUploads((previous) =>
-            previous.map((item) =>
-              item.id === itemId ? { ...item, status: "error" } : item,
-            ),
-          );
-          toast.error(error instanceof Error ? error.message : `Upload failed for ${pathName}.`);
-        }
-      }),
-    );
-  }
-
-  function uploadWithProgress(file: File, uploadUrl: string, itemId: string) {
-    return new Promise<void>((resolve, reject) => {
-      const request = new XMLHttpRequest();
-
-      request.upload.addEventListener("progress", (event) => {
-        if (!event.lengthComputable) return;
-        const progress = Math.round((event.loaded / event.total) * 100);
-        setUploads((previous) =>
-          previous.map((item) =>
-            item.id === itemId ? { ...item, progress } : item,
-          ),
-        );
-      });
-
-      request.addEventListener("load", () => {
-        if (request.status >= 200 && request.status < 300) {
-          resolve();
-          return;
-        }
-        reject(new Error("Upload failed."));
-      });
-
-      request.addEventListener("error", () => reject(new Error("Upload failed.")));
-      request.open("PUT", uploadUrl);
-      request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-      request.send(file);
-    });
   }
 
   function getFilePath(file: File) {
-    const relativePath = "webkitRelativePath" in file ? file.webkitRelativePath : "";
+    const relativePath = "webkitRelativePath" in file ? (file.webkitRelativePath as string) : "";
     return relativePath || file.name;
+  }
+
+  function groupFilesForUpload(fileList: File[]): UploadGroup[] {
+    const groups: Record<string, UploadGroup> = {};
+    const result: UploadGroup[] = [];
+
+    for (const file of fileList) {
+      const relPath = getFilePath(file);
+      
+      if (relPath && relPath.includes("/")) {
+        const parts = relPath.split("/");
+        const rootFolder = parts[0];
+        const subPath = parts.slice(1).join("/");
+
+        if (!groups[rootFolder]) {
+          groups[rootFolder] = {
+            id: crypto.randomUUID(),
+            name: rootFolder,
+            type: "folder",
+            files: [],
+          };
+        }
+        groups[rootFolder].files.push({
+          file,
+          relativePath: subPath,
+        });
+      } else {
+        result.push({
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: "file",
+          files: [{ file, relativePath: file.name }],
+        });
+      }
+    }
+
+    for (const rootFolder in groups) {
+      result.push(groups[rootFolder]);
+    }
+
+    return result;
+  }
+
+  async function handleUploadStart(fileList: File[]) {
+    const validFiles = fileList.filter((file) => file.size >= 0);
+    if (validFiles.length === 0) return;
+
+    const uploadGroups = groupFilesForUpload(validFiles);
+
+    // Run all group uploads
+    await Promise.all(uploadGroups.map(group => executeGroupUpload(group)));
+  }
+
+  async function executeGroupUpload(group: UploadGroup) {
+    const totalBytes = group.files.reduce((sum, f) => sum + f.file.size, 0);
+    const activeRequests: XMLHttpRequest[] = [];
+
+    // Add or reset the queue item
+    setUploads((prev) => {
+      const existing = prev.find((u) => u.id === group.id);
+      if (existing) {
+        return prev.map((u) =>
+          u.id === group.id
+            ? {
+                ...u,
+                status: "uploading",
+                progress: 0,
+                uploadedBytes: 0,
+                activeRequests,
+                error: undefined,
+              }
+            : u,
+        );
+      } else {
+        return [
+          {
+            id: group.id,
+            name: group.name,
+            type: group.type,
+            status: "uploading",
+            progress: 0,
+            totalBytes,
+            uploadedBytes: 0,
+            activeRequests,
+            group,
+          },
+          ...prev,
+        ];
+      }
+    });
+
+    const fileProgresses = new Map<string, number>();
+
+    try {
+      await Promise.all(
+        group.files.map(async (fileInfo) => {
+          const { file, relativePath } = fileInfo;
+
+          // 1. Get pre-signed URL from API
+          const signed = await fetchJson<UploadSignerResponse>(`/api/rooms/${roomId}/uploads`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: relativePath,
+              contentType: file.type || "application/octet-stream",
+              sizeBytes: file.size,
+              uploadId: group.type === "folder" ? group.id : undefined,
+            }),
+          });
+
+          // 2. Upload file to R2 with XMLHttpRequest progress reporting
+          await new Promise<void>((resolve, reject) => {
+            const request = new XMLHttpRequest();
+            activeRequests.push(request);
+
+            request.upload.addEventListener("progress", (event) => {
+              if (!event.lengthComputable) return;
+              fileProgresses.set(relativePath, event.loaded);
+
+              let totalUploaded = 0;
+              for (const [_, bytes] of fileProgresses.entries()) {
+                totalUploaded += bytes;
+              }
+
+              const progress = totalBytes > 0 ? Math.round((totalUploaded / totalBytes) * 100) : 0;
+
+              setUploads((prev) =>
+                prev.map((u) =>
+                  u.id === group.id
+                    ? { ...u, uploadedBytes: totalUploaded, progress: Math.min(progress, 99) }
+                    : u,
+                ),
+              );
+            });
+
+            request.addEventListener("load", () => {
+              if (request.status >= 200 && request.status < 300) {
+                fileProgresses.set(relativePath, file.size);
+                resolve();
+              } else {
+                reject(new Error("Upload failed."));
+              }
+            });
+
+            request.addEventListener("error", () => reject(new Error("Upload failed.")));
+            request.open("PUT", signed.uploadUrl);
+            request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+            request.send(file);
+          });
+
+          // 3. Complete the upload
+          await fetchJson(`/api/rooms/${roomId}/uploads`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              objectKey: signed.objectKey,
+              fileName: relativePath,
+              contentType: file.type || "application/octet-stream",
+              sizeBytes: file.size,
+              uploadId: group.type === "folder" ? group.id : undefined,
+              folderName: group.type === "folder" ? group.name : undefined,
+            }),
+          });
+        })
+      );
+
+      // Mark upload group as complete
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.id === group.id
+            ? { ...u, status: "complete", progress: 100, uploadedBytes: totalBytes }
+            : u,
+        ),
+      );
+
+      // Auto-hide the successful item after a brief delay
+      setTimeout(() => {
+        setUploads((prev) => prev.filter((u) => u.id !== group.id));
+      }, 700);
+
+    } catch (error) {
+      const wasAborted = activeRequests.some(xhr => xhr.readyState === 0 || xhr.status === 0);
+      if (wasAborted) return; // Silent cleanup if user cancelled
+
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.id === group.id
+            ? { ...u, status: "error", error: error instanceof Error ? error.message : "Upload failed" }
+            : u,
+        ),
+      );
+      toast.error(`Upload failed for ${group.name}`);
+    }
+  }
+
+  function cancelUpload(id: string) {
+    setUploads((prev) => {
+      const item = prev.find((u) => u.id === id);
+      if (item) {
+        item.activeRequests.forEach((xhr) => xhr.abort());
+      }
+      return prev.filter((u) => u.id !== id);
+    });
+  }
+
+  async function handleRetryUpload(id: string) {
+    const item = uploads.find((u) => u.id === id);
+    if (item) {
+      await executeGroupUpload(item.group);
+    }
   }
 
   function resetPickers() {
@@ -164,7 +429,7 @@ export function FilesPanel({
   async function handlePickerChange(event: ChangeEvent<HTMLInputElement>) {
     const nextFiles = Array.from(event.target.files ?? []);
     resetPickers();
-    await uploadFiles(nextFiles);
+    await handleUploadStart(nextFiles);
   }
 
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -173,7 +438,7 @@ export function FilesPanel({
     setIsDragging(false);
 
     const droppedFiles = Array.from(event.dataTransfer.files ?? []);
-    await uploadFiles(droppedFiles);
+    await handleUploadStart(droppedFiles);
   }
 
   async function handleDownload(fileId: string) {
@@ -182,6 +447,14 @@ export function FilesPanel({
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to download file.");
+    }
+  }
+
+  async function handleDownloadFolder(uploadId: string) {
+    try {
+      window.open(`/api/folders/${uploadId}/download`, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download folder.");
     }
   }
 
@@ -202,6 +475,23 @@ export function FilesPanel({
     }
   }
 
+  async function handleRenameFolderSubmit() {
+    if (!renameFolderTarget) return;
+
+    try {
+      await fetchJson(`/api/folders/${renameFolderTarget.uploadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameFolderValue }),
+      });
+      onFolderRename(renameFolderTarget.uploadId, renameFolderValue);
+      setRenameFolderTarget(null);
+      toast.success("Folder renamed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to rename folder.");
+    }
+  }
+
   async function handleDelete(fileId: string) {
     try {
       await fetchJson(`/api/files/${fileId}`, {
@@ -213,6 +503,20 @@ export function FilesPanel({
       toast.error(error instanceof Error ? error.message : "Unable to delete file.");
     }
   }
+
+  async function handleDeleteFolder(uploadId: string) {
+    try {
+      await fetchJson(`/api/folders/${uploadId}`, {
+        method: "DELETE",
+      });
+      onFolderDelete(uploadId);
+      toast.success("Folder deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to delete folder.");
+    }
+  }
+
+  const groupedItems = groupFilesAndFolders(files);
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -298,22 +602,46 @@ export function FilesPanel({
               {uploads.map((upload) => (
                 <motion.div
                   key={upload.id}
+                  layout
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
                   className="rounded-lg border border-border bg-card px-3 py-2 text-xs"
                 >
                   <div className="flex items-center justify-between gap-3 mb-1.5">
-                    <p className="truncate font-medium text-foreground">{upload.name}</p>
-                    <span className="text-muted-foreground shrink-0">
-                      {upload.status === "complete"
-                        ? "Uploaded"
-                        : upload.status === "error"
-                          ? "Failed"
-                          : `${upload.progress}%`}
-                    </span>
+                    <p className="truncate font-medium text-foreground flex-1">{upload.name}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-muted-foreground">
+                        {upload.status === "complete"
+                          ? "Uploaded"
+                          : upload.status === "error"
+                            ? "Failed"
+                            : `${upload.progress}%`}
+                      </span>
+                      {upload.status === "error" && (
+                        <button
+                          onClick={() => handleRetryUpload(upload.id)}
+                          className="text-blue-500 hover:text-blue-600 transition-colors p-0.5 rounded"
+                          title="Retry"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => cancelUpload(upload.id)}
+                        className="text-muted-foreground/60 hover:text-foreground transition-colors p-0.5 rounded"
+                        title="Cancel"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
-                  <Progress value={upload.progress} className="h-1 bg-muted [&>div]:bg-primary" />
+                  {upload.status === "error" ? (
+                    <p className="text-[10px] text-destructive truncate">{upload.error}</p>
+                  ) : (
+                    <Progress value={upload.progress} className="h-1 bg-muted [&>div]:bg-primary transition-all duration-200" />
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -327,75 +655,164 @@ export function FilesPanel({
           Recent uploads
         </h3>
         <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
-          {files.length === 0 ? (
+          {groupedItems.length === 0 ? (
             <div className="rounded-xl border border-border border-dashed py-12 text-center flex flex-col items-center justify-center">
               <File className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-xs font-medium text-muted-foreground">No files in this room yet</p>
               <p className="text-[11px] text-muted-foreground/60 mt-1">Uploaded files appear here for everyone</p>
             </div>
           ) : (
-            files.map((file) => (
-              <motion.div
-                key={file.id}
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-3 transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  {file.thumbnailUrl ? (
-                    <Image
-                      src={file.thumbnailUrl}
-                      alt={file.fileName}
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 rounded object-cover border border-border"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-muted">
-                      <File className="h-4 w-4 text-muted-foreground/75" />
+            groupedItems.map((item) => {
+              if (item.type === "file") {
+                const { file } = item;
+                return (
+                  <motion.div
+                    key={file.id}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-3 transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      {file.thumbnailUrl ? (
+                        <Image
+                          src={file.thumbnailUrl}
+                          alt={file.fileName}
+                          width={36}
+                          height={36}
+                          className="h-9 w-9 rounded object-cover border border-border"
+                        />
+                      ) : (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-muted">
+                          {getFileIcon(file.fileName, "h-4 w-4 text-muted-foreground/75")}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-foreground leading-none">{file.fileName}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground leading-none">
+                          {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-foreground leading-none">{file.fileName}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground leading-none">
-                      {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Desktop Action Buttons directly visible */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon-xs" onClick={() => handleDownload(file.id)} title="Download file">
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => {
-                      setRenameTarget(file);
-                      setRenameValue(file.fileName);
-                    }}
-                    title="Rename file"
+                    
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="icon-xs" onClick={() => handleDownload(file.id)} title="Download file">
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => {
+                          setRenameTarget(file);
+                          setRenameValue(file.fileName);
+                        }}
+                        title="Rename file"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => handleDelete(file.id)}
+                        className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10"
+                        title="Delete file"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              } else {
+                const folder = item;
+                const isFolderExpanded = expandedPaths[folder.uploadId] ?? false;
+                const tree = buildTree(folder.files);
+
+                return (
+                  <motion.div
+                    key={folder.uploadId}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col rounded-lg border border-border bg-card transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => handleDelete(file.id)}
-                    className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10"
-                    title="Delete file"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </motion.div>
-            ))
+                    {/* Folder Header Row */}
+                    <div
+                      onClick={() => togglePath(folder.uploadId)}
+                      className="flex items-center justify-between gap-4 p-3 cursor-pointer select-none group"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <motion.span
+                          animate={{ rotate: isFolderExpanded ? 90 : 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-muted/30"
+                        >
+                          <ChevronRight className="h-4 w-4 text-muted-foreground/75" />
+                        </motion.span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <Folder className="h-3.5 w-3.5 shrink-0 text-blue-500/80 dark:text-blue-400/80" />
+                            <p className="truncate text-xs font-semibold text-foreground leading-none">{folder.name}</p>
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground leading-none">
+                            {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon-xs" onClick={() => handleDownloadFolder(folder.uploadId)} title="Download folder (ZIP)">
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => {
+                            setRenameFolderTarget(folder);
+                            setRenameFolderValue(folder.name);
+                          }}
+                          title="Rename folder"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleDeleteFolder(folder.uploadId)}
+                          className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10"
+                          title="Delete folder"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Folder Tree View when Expanded */}
+                    {isFolderExpanded && (
+                      <div className="border-t border-border/50 py-2 bg-muted/10 dark:bg-muted/5 rounded-b-lg">
+                        <FolderTree
+                          nodes={tree}
+                          uploadId={folder.uploadId}
+                          depth={1}
+                          expandedPaths={expandedPaths}
+                          togglePath={togglePath}
+                          onFileDownload={handleDownload}
+                          onFileRename={(file) => {
+                            setRenameTarget(file);
+                            setRenameValue(file.fileName);
+                          }}
+                          onFileDelete={handleDelete}
+                        />
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              }
+            })
           )}
         </div>
       </div>
 
+      {/* File Rename Dialog */}
       <Dialog open={Boolean(renameTarget)} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent className="rounded-lg max-w-sm">
           <DialogHeader>
@@ -416,6 +833,174 @@ export function FilesPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Folder Rename Dialog */}
+      <Dialog open={Boolean(renameFolderTarget)} onOpenChange={(open) => !open && setRenameFolderTarget(null)}>
+        <DialogContent className="rounded-lg max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">Rename folder</DialogTitle>
+          </DialogHeader>
+          <Input 
+            value={renameFolderValue} 
+            onChange={(event) => setRenameFolderValue(event.target.value)} 
+            className="h-8 text-sm mt-2"
+          />
+          <DialogFooter className="mt-4 gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => setRenameFolderTarget(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleRenameFolderSubmit}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Recursive Tree Node Renderer
+function FolderTree({
+  nodes,
+  uploadId,
+  depth = 1,
+  expandedPaths,
+  togglePath,
+  onFileDownload,
+  onFileRename,
+  onFileDelete,
+}: {
+  nodes: Record<string, TreeNode>;
+  uploadId: string;
+  depth?: number;
+  expandedPaths: Record<string, boolean>;
+  togglePath: (path: string) => void;
+  onFileDownload: (fileId: string) => void;
+  onFileRename: (file: RoomFile) => void;
+  onFileDelete: (fileId: string) => void;
+}) {
+  const sortedNodeNames = Object.keys(nodes).sort((a, b) => {
+    const nodeA = nodes[a];
+    const nodeB = nodes[b];
+    if (nodeA.type !== nodeB.type) {
+      return nodeA.type === "directory" ? -1 : 1;
+    }
+    return a.localeCompare(b);
+  });
+
+  return (
+    <div className="flex flex-col">
+      {sortedNodeNames.map((name) => {
+        const node = nodes[name];
+        const isDir = node.type === "directory";
+        const pathKey = `${uploadId}/${node.relativePath}`;
+        const isExpanded = expandedPaths[pathKey] ?? false;
+
+        if (isDir) {
+          return (
+            <div key={pathKey} className="flex flex-col">
+              <div
+                onClick={() => togglePath(pathKey)}
+                className="flex items-center gap-1.5 py-1 px-2 hover:bg-muted/50 rounded cursor-pointer select-none text-xs font-medium text-muted-foreground group"
+                style={{ paddingLeft: `${depth * 12 + 8}px` }}
+              >
+                <motion.span
+                  animate={{ rotate: isExpanded ? 90 : 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex shrink-0 items-center justify-center w-3 h-3 text-muted-foreground/60"
+                >
+                  <ChevronRight className="w-3 h-3" />
+                </motion.span>
+                <Folder className="w-3.5 h-3.5 shrink-0 text-blue-500/70 dark:text-blue-400/60" />
+                <span className="truncate text-foreground/80 group-hover:text-foreground">{node.name}</span>
+              </div>
+
+              {isExpanded && (
+                <FolderTree
+                  nodes={node.children}
+                  uploadId={uploadId}
+                  depth={depth + 1}
+                  expandedPaths={expandedPaths}
+                  togglePath={togglePath}
+                  onFileDownload={onFileDownload}
+                  onFileRename={onFileRename}
+                  onFileDelete={onFileDelete}
+                />
+              )}
+            </div>
+          );
+        } else {
+          const file = node.file!;
+          return (
+            <div
+              key={file.id}
+              className="flex items-center justify-between py-1 px-2 hover:bg-muted/50 rounded group text-xs text-foreground/80 hover:text-foreground"
+              style={{ paddingLeft: `${depth * 12 + 16}px` }}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {file.thumbnailUrl ? (
+                  <div className="relative h-4 w-4 shrink-0 rounded overflow-hidden border border-border">
+                    <Image
+                      src={file.thumbnailUrl}
+                      alt={file.fileName}
+                      fill
+                      sizes="16px"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <span className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60 flex items-center justify-center">
+                    {getFileIcon(file.fileName, "w-3.5 h-3.5")}
+                  </span>
+                )}
+                <span className="truncate leading-none">{node.name}</span>
+                <span className="text-[10px] text-muted-foreground/50 shrink-0 font-normal">
+                  ({formatFileSize(file.sizeBytes)})
+                </span>
+              </div>
+
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity ml-2">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-5 w-5 [&_svg]:size-3"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFileDownload(file.id);
+                  }}
+                  title="Download file"
+                >
+                  <Download />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-5 w-5 [&_svg]:size-3"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFileRename(file);
+                  }}
+                  title="Rename file"
+                >
+                  <Pencil />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-5 w-5 hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 [&_svg]:size-3"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFileDelete(file.id);
+                  }}
+                  title="Delete file"
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+            </div>
+          );
+        }
+      })}
     </div>
   );
 }

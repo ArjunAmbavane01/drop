@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { files } from "@/db/schema";
+import { uploadedFiles } from "@/db/schema";
 import { jsonError, jsonOk } from "@/lib/http";
 import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomAccess } from "@/server/rooms/auth";
@@ -14,7 +14,7 @@ export async function GET(
   try {
     const { fileId } = await params;
     const session = await requireRequestSession();
-    const [file] = await getDb().select().from(files).where(eq(files.id, fileId)).limit(1);
+    const [file] = await getDb().select().from(uploadedFiles).where(eq(uploadedFiles.id, fileId)).limit(1);
 
     if (!file) {
       return jsonError("File not found.", 404);
@@ -31,3 +31,4 @@ export async function GET(
     );
   }
 }
+

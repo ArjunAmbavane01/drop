@@ -18,6 +18,7 @@ export const createUploadSchema = z.object({
   fileName: z.string().min(1).max(260),
   contentType: z.string().min(1).max(255),
   sizeBytes: z.number().int().nonnegative(),
+  uploadId: z.string().uuid().optional().nullable(),
 });
 
 export const completeUploadSchema = z.object({
@@ -25,8 +26,15 @@ export const completeUploadSchema = z.object({
   fileName: z.string().min(1).max(260),
   contentType: z.string().min(1).max(255).nullable(),
   sizeBytes: z.number().int().nonnegative(),
+  uploadId: z.string().uuid().optional().nullable(),
+  folderName: z.string().trim().min(1).max(260).optional().nullable(),
 });
 
 export const renameFileSchema = z.object({
   fileName: z.string().trim().min(1).max(260),
 });
+
+export const renameFolderSchema = z.object({
+  name: z.string().trim().min(1).max(260),
+});
+

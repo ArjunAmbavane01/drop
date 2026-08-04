@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { files } from "@/db/schema";
+import { uploadedFiles } from "@/db/schema";
 import { jsonError, jsonOk } from "@/lib/http";
 import { renameFileSchema } from "@/lib/validators";
 import { requireRequestSession } from "@/server/auth/request";
@@ -19,7 +19,7 @@ export async function PATCH(
     const json = await request.json();
     const input = renameFileSchema.parse(json);
 
-    const [file] = await getDb().select().from(files).where(eq(files.id, fileId)).limit(1);
+    const [file] = await getDb().select().from(uploadedFiles).where(eq(uploadedFiles.id, fileId)).limit(1);
 
     if (!file) {
       return jsonError("File not found.", 404);
@@ -28,9 +28,9 @@ export async function PATCH(
     await requireRoomAccess(file.roomId, session.user.id);
 
     await getDb()
-      .update(files)
+      .update(uploadedFiles)
       .set({ fileName: input.fileName })
-      .where(eq(files.id, fileId));
+      .where(eq(uploadedFiles.id, fileId));
 
     await createRoomEvent(file.roomId, "file.renamed", {
       fileId,
@@ -51,7 +51,7 @@ export async function DELETE(
     const { fileId } = await params;
     const session = await requireRequestSession();
 
-    const [file] = await getDb().select().from(files).where(eq(files.id, fileId)).limit(1);
+    const [file] = await getDb().select().from(uploadedFiles).where(eq(uploadedFiles.id, fileId)).limit(1);
 
     if (!file) {
       return jsonError("File not found.", 404);
@@ -59,7 +59,7 @@ export async function DELETE(
 
     await requireRoomAccess(file.roomId, session.user.id);
     await removeObject(file.objectKey);
-    await getDb().delete(files).where(and(eq(files.id, fileId), eq(files.roomId, file.roomId)));
+    await getDb().delete(uploadedFiles).where(and(eq(uploadedFiles.id, fileId), eq(uploadedFiles.roomId, file.roomId)));
 
     await createRoomEvent(file.roomId, "file.deleted", { fileId });
 
@@ -68,3 +68,4 @@ export async function DELETE(
     return jsonError(error instanceof Error ? error.message : "Unable to delete file.");
   }
 }
+

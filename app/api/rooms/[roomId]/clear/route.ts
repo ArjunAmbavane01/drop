@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { files, roomTexts } from "@/db/schema";
+import { uploads, uploadedFiles, roomTexts } from "@/db/schema";
 import { jsonError, jsonOk } from "@/lib/http";
 import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomOwner } from "@/server/rooms/auth";
@@ -18,11 +18,12 @@ export async function POST(
 
     await requireRoomOwner(roomId, session.user.id);
 
-    const roomFiles = await getDb().select().from(files).where(eq(files.roomId, roomId));
+    const roomFiles = await getDb().select().from(uploadedFiles).where(eq(uploadedFiles.roomId, roomId));
 
     await Promise.all(roomFiles.map((file) => removeObject(file.objectKey)));
 
-    await getDb().delete(files).where(eq(files.roomId, roomId));
+    await getDb().delete(uploadedFiles).where(eq(uploadedFiles.roomId, roomId));
+    await getDb().delete(uploads).where(eq(uploads.roomId, roomId));
     await getDb()
       .update(roomTexts)
       .set({
@@ -41,3 +42,4 @@ export async function POST(
     );
   }
 }
+
