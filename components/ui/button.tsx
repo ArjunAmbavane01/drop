@@ -8,7 +8,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "w-full bg-linear-to-b from-sky-600 to-blue-700 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] group-hover:from-sky-400 group-hover:to-blue-500",
+        default: "bg-linear-to-b from-sky-600 to-blue-700 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] group-hover:from-sky-400 group-hover:to-blue-500 text-primary-foreground",
         outline:
           "border border-border bg-background text-foreground hover:bg-muted hover:text-foreground",
         secondary:
@@ -20,7 +20,7 @@ const buttonVariants = cva(
       },
       size: {
         default:
-          "h-10 gap-2 px-3.5 rounded-lg",
+          "h-10 gap-2 px-5 rounded-lg",
         xs: "h-7 gap-1 rounded-lg px-2 text-xs",
         sm: "h-8 gap-1.5 rounded-lg px-3 text-xs sm:text-sm",
         lg: "h-10 gap-2 px-4 rounded-lg",

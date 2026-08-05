@@ -66,7 +66,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   });
 
   return (
-    <div className="flex flex-col items-center w-full space-y-12 rounded-2xl p-8">
+    <div className="flex flex-col items-center w-full space-y-12 rounded-2xl py-8">
       <div className="text-center space-y-5">
         <h1 className="text-3xl font-medium tracking-tight">
           {mode === "sign-up"

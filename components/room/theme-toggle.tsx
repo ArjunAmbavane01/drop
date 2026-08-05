@@ -11,14 +11,10 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
-      {resolvedTheme === "dark" ? (
-        <SunMedium className="h-4 w-4" />
-      ) : (
-        <MoonStar className="h-4 w-4" />
-      )}
+      {resolvedTheme === "dark" ? <MoonStar /> : <SunMedium />}
     </Button>
   );
 }

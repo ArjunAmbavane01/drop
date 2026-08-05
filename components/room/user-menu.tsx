@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -25,32 +26,32 @@ export function UserMenu({
 
   async function handleSignOut() {
     const { error } = await authClient.signOut();
-
     if (error) {
       toast.error(error.message ?? "Unable to sign out.");
       return;
     }
-
     router.push("/sign-in");
     router.refresh();
   }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" className="h-9 px-1.5" />}>
-        <Avatar className="h-7 w-7">
+      <DropdownMenuTrigger render={<Button variant="outline" size={"icon"} />}>
+        <Avatar className="size-7">
           <AvatarImage src={user.image ?? undefined} alt={user.name} />
           <AvatarFallback>{user.name.slice(0, 2).toUpperCase()}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60 rounded-xl">
-        <DropdownMenuLabel>
-          <p className="font-medium">{user.name}</p>
-          <p className="mt-1 text-xs font-normal text-muted-foreground">{user.email}</p>
-        </DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-60 rounded-lg">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            <p className="font-medium">{user.name}</p>
+            <p className="mt-1 text-xs font-normal text-muted-foreground">{user.email}</p>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut}>
-          <LogOut className="mr-2 h-4 w-4" />
+        <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
+          <LogOut className="size-4" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
