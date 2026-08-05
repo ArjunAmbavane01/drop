@@ -17,7 +17,7 @@ export default async function SignUpPage() {
     <main className="flex min-h-screen items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         <AuthForm mode="sign-up" />
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link href="/sign-in" className="font-medium text-foreground">
             Sign in

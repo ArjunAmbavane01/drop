@@ -1,118 +1,170 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Lock, Mail, User } from "lucide-react";
 import { toast } from "sonner";
 
-import { authClient } from "@/lib/auth-client";
+import AnimatedInput from "@/components/ui/smoothui/animated-input";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { authClient } from "@/lib/auth-client";
+import {
+  signInSchema,
+  signUpSchema,
+  type SignInValues,
+  type SignUpValues,
+} from "./auth-schema";
 
 type AuthMode = "sign-in" | "sign-up";
 
 export function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
-  const [isPending, setIsPending] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  async function handleSubmit(formData: FormData) {
-    setIsPending(true);
+  const schema = mode === "sign-up" ? signUpSchema : signInSchema;
 
-    const email = String(formData.get("email") ?? "");
-    const password = String(formData.get("password") ?? "");
-    const name = String(formData.get("name") ?? "");
+  const form = useForm<SignInValues | SignUpValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+    },
+  });
 
-    try {
-      if (mode === "sign-up") {
-        const { error } = await authClient.signUp.email({
-          name,
-          email,
-          password,
-        });
-
-        if (error) {
-          throw new Error(error.message ?? "Unable to create account.");
+  const onSubmit = form.handleSubmit((values) => {
+    startTransition(async () => {
+      try {
+        if (mode === "sign-up") {
+          const { error } = await authClient.signUp.email(values as SignUpValues);
+          if (error) {
+            toast.error(error.message ?? "Unable to create account.");
+            return;
+          }
+        } else {
+          const { error } = await authClient.signIn.email(values as SignInValues);
+          if (error) {
+            toast.error(error.message ?? "Unable to sign in.");
+            return;
+          }
         }
-      } else {
-        const { error } = await authClient.signIn.email({
-          email,
-          password,
-        });
 
-        if (error) {
-          throw new Error(error.message ?? "Unable to sign in.");
-        }
+        toast.success(
+          mode === "sign-up"
+            ? "Account created successfully."
+            : "Signed in successfully."
+        );
+
+        router.push("/");
+      } catch {
+        toast.error("Something went wrong. Please try again.");
       }
-
-      toast.success(mode === "sign-up" ? "Account created." : "Welcome back.");
-      router.push("/");
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Authentication failed.");
-    } finally {
-      setIsPending(false);
-    }
-  }
+    });
+  });
 
   return (
-    <Card className="surface w-full max-w-md rounded-[2rem] p-8">
-      <div className="mb-8 space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {mode === "sign-up" ? "Create your Drop account" : "Sign in to Drop"}
+    <div className="flex flex-col items-center w-full space-y-12 rounded-2xl p-8">
+      <div className="text-center space-y-5">
+        <h1 className="text-3xl font-medium tracking-tight">
+          {mode === "sign-up"
+            ? "Create your Drop account"
+            : "Sign in to Drop"}
         </h1>
-        <p className="text-sm leading-6 text-muted-foreground">
+
+        <p className="text-muted-foreground text-balance">
           {mode === "sign-up"
             ? "Create a room, share the code, and keep your devices in sync."
             : "Open your room and continue where you left off."}
         </p>
       </div>
-      <form action={handleSubmit} className="space-y-5">
-        {mode === "sign-up" ? (
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              name="name"
-              placeholder="Arjun Patel"
-              required
-              className="h-12 rounded-2xl"
-            />
-          </div>
-        ) : null}
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="you@example.com"
-            required
-            className="h-12 rounded-2xl"
+
+      <form onSubmit={onSubmit} className="space-y-5 w-xs">
+        {mode === "sign-up" && (
+          <Controller
+            control={form.control}
+            name="name"
+            render={({ field, fieldState }) => (
+              <div>
+                <AnimatedInput
+                  {...field}
+                  icon={<User className="size-4 text-gray-400" />}
+                  label="Name"
+                  placeholder="Arjun Patel"
+                />
+                {fieldState.error && (
+                  <p className="mt-1 text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                )}
+              </div>
+            )}
           />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            required
-            className="h-12 rounded-2xl"
-          />
-        </div>
+        )}
+
+        <Controller
+          control={form.control}
+          name="email"
+          render={({ field, fieldState }) => (
+            <div>
+              <AnimatedInput
+                {...field}
+                type="email"
+                icon={<Mail className="size-4 text-gray-400" />}
+                label="Email"
+                placeholder="you@example.com"
+              />
+              {fieldState.error && (
+                <p className="mt-1 text-sm text-destructive">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </div>
+          )}
+        />
+
+        <Controller
+          control={form.control}
+          name="password"
+          render={({ field, fieldState }) => (
+            <div>
+              <AnimatedInput
+                {...field}
+                type="password"
+                icon={<Lock className="size-4 text-gray-400" />}
+                label="Password"
+                placeholder="Enter your password"
+              />
+              {fieldState.error && (
+                <p className="mt-1 text-sm text-destructive">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </div>
+          )}
+        />
+
         <Button
-          type="submit"
+          className="flex items-center w-full"
           disabled={isPending}
-          className="h-12 w-full rounded-2xl text-sm font-medium"
+          type="submit"
         >
-          {isPending
-            ? "Working..."
-            : mode === "sign-up"
-              ? "Create account"
-              : "Sign in"}
+          {isPending ? (
+            <>
+              <Spinner />
+              {mode === "sign-up"
+                ? "Creating account..."
+                : "Signing in..."}
+            </>
+          ) : mode === "sign-up" ? (
+            "Create account"
+          ) : (
+            "Sign in"
+          )}
         </Button>
       </form>
-    </Card>
+    </div>
   );
 }

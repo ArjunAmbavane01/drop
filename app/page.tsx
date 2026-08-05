@@ -1,23 +1,27 @@
 import { redirect } from "next/navigation";
-
 import { getCurrentSession } from "@/server/auth/session";
-import { getInitialRoomForUser } from "@/server/rooms/queries";
-import { HomeShell } from "@/components/home/home-shell";
+import { getRoomsForUser } from "@/server/rooms/queries";
+import { DashboardScreen } from "@/components/dashboard/dashboard-screen";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const session = await getCurrentSession();
 
-  if (!session) {
-    return <HomeShell />;
-  }
+  if (!session) redirect("/sign-in");
 
-  const initialRoom = await getInitialRoomForUser(session.user.id);
+  const { myRooms, joinedRooms } = await getRoomsForUser(session.user.id);
 
-  if (initialRoom) {
-    redirect(`/rooms/${initialRoom.id}`);
-  }
-
-  redirect("/welcome");
+  return (
+    <DashboardScreen
+      initialMyRooms={myRooms}
+      initialJoinedRooms={joinedRooms}
+      currentUser={{
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image ?? null,
+      }}
+    />
+  );
 }
