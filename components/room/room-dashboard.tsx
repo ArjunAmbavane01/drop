@@ -6,7 +6,7 @@ import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
-import { fetchJson } from "@/lib/fetcher";
+import { leaveRoomAction, clearRoomAction, saveTextAction } from "@/server/rooms/actions";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { useRoomEvents } from "@/hooks/use-room-events";
 import type { RoomEvent, RoomMember, RoomSnapshot } from "@/types/rooms";
@@ -37,6 +37,7 @@ export function RoomDashboard({
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [textValue, setTextValue] = useState(initialSnapshot.text.value);
   const [activeTab, setActiveTab] = useState<"text" | "files">("text");
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const isOwner = initialSnapshot.room.ownerId === currentUser.id;
 
   const textValueRef = useRef(initialSnapshot.text.value);
@@ -50,11 +51,7 @@ export function RoomDashboard({
     const saveId = ++saveSequenceRef.current;
 
     try {
-      await fetchJson(`/api/rooms/${initialSnapshot.room.id}/text`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: nextText }),
-      });
+      await saveTextAction(initialSnapshot.room.id, { text: nextText });
 
       if (saveId > lastAckedSaveRef.current) {
         lastAckedSaveRef.current = saveId;
@@ -146,7 +143,7 @@ export function RoomDashboard({
     });
   }, []);
 
-  useRoomEvents(initialSnapshot.room.id, handleEvent);
+  useRoomEvents(initialSnapshot.room.id, handleEvent, setOnlineUserIds);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -181,11 +178,9 @@ export function RoomDashboard({
 
   async function handleLeaveRoom() {
     try {
-      await fetchJson(`/api/rooms/${initialSnapshot.room.id}/membership`, {
-        method: "DELETE",
-      });
+      await leaveRoomAction(initialSnapshot.room.id);
       toast.success("You left the room.");
-      router.push("/welcome");
+      router.push("/");
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to leave room.");
@@ -194,9 +189,7 @@ export function RoomDashboard({
 
   async function handleClearSession() {
     try {
-      await fetchJson(`/api/rooms/${initialSnapshot.room.id}/clear`, {
-        method: "POST",
-      });
+      await clearRoomAction(initialSnapshot.room.id);
       remoteRevisionRef.current = localRevisionRef.current;
       lastRemoteTextRef.current = "";
       textValueRef.current = "";
@@ -221,6 +214,7 @@ export function RoomDashboard({
           currentUser={currentUser}
           isOwner={isOwner}
           onLeave={handleLeaveRoom}
+          onlineUserIds={onlineUserIds}
         />
 
         <div className="flex flex-col flex-1 mt-6">

@@ -72,7 +72,6 @@ export function DashboardActions({
   const handleCreateRoom = async (data: CreateRoomFormData) => {
     try {
       await onCreateRoom(data.roomName);
-      toast.success("Room created successfully!");
       createForm.reset();
       setCreateOpen(false);
     } catch (error) {
@@ -85,7 +84,6 @@ export function DashboardActions({
   const handleJoinRoom = async (data: JoinRoomFormData) => {
     try {
       await onJoinRoom(data.roomCode);
-      toast.success("Joined room successfully!");
       joinForm.reset();
       setJoinOpen(false);
     } catch (error) {
@@ -128,7 +126,7 @@ export function DashboardActions({
                   </DialogHeader>
 
                   <form
-                    onSubmit={createForm.handleSubmit(handleCreateRoom)}
+                    onSubmit={createForm.handleSubmit((data) => handleCreateRoom(data))}
                     className="space-y-4"
                   >
                     <Controller
@@ -208,7 +206,7 @@ export function DashboardActions({
             </DialogHeader>
 
             <form
-              onSubmit={joinForm.handleSubmit(handleJoinRoom)}
+              onSubmit={joinForm.handleSubmit((data) => handleJoinRoom(data))}
               className="space-y-4"
             >
               <Controller

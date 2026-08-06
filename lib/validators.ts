@@ -47,3 +47,12 @@ export const renameFolderSchema = z.object({
   name: z.string().trim().min(1).max(260),
 });
 
+export type CreateRoomInput = z.infer<typeof createRoomSchema>;
+export type JoinRoomInput = z.infer<typeof joinRoomSchema>;
+export type UpdateTextInput = z.infer<typeof updateTextSchema>;
+export type CreateUploadInput = z.infer<typeof createUploadSchema>;
+export type CompleteUploadInput = z.infer<typeof completeUploadSchema>;
+export type RenameFileInput = z.infer<typeof renameFileSchema>;
+export type RenameFolderInput = z.infer<typeof renameFolderSchema>;
+
+

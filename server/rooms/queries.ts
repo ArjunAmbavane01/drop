@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { getDb } from "@/db";
@@ -110,4 +110,40 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
       uploadName: file.uploadName,
     })),
   };
+}
+
+export async function getRoomsForUser(userId: string) {
+  // Query all rooms where ownerId === userId
+  const myRooms = await getDb()
+    .select({
+      id: rooms.id,
+      name: rooms.name,
+      roomCode: rooms.roomCode,
+      ownerId: rooms.ownerId,
+      createdAt: rooms.createdAt,
+    })
+    .from(rooms)
+    .where(eq(rooms.ownerId, userId))
+    .orderBy(desc(rooms.createdAt));
+
+  // Query all rooms the user has joined (exist in roomMemberships) but is NOT the owner
+  const joinedRooms = await getDb()
+    .select({
+      id: rooms.id,
+      name: rooms.name,
+      roomCode: rooms.roomCode,
+      ownerId: rooms.ownerId,
+      createdAt: rooms.createdAt,
+    })
+    .from(roomMemberships)
+    .innerJoin(rooms, eq(rooms.id, roomMemberships.roomId))
+    .where(
+      and(
+        eq(roomMemberships.userId, userId),
+        ne(rooms.ownerId, userId)
+      )
+    )
+    .orderBy(desc(roomMemberships.joinedAt));
+
+  return { myRooms, joinedRooms };
 }

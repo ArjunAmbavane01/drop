@@ -1,13 +1,15 @@
 "use client";
 
-import { Copy, DoorOpen } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Copy, DoorOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import type { RoomMember, RoomSnapshot } from "@/types/rooms";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/room/theme-toggle";
 import { UserMenu } from "@/components/room/user-menu";
+import { ElasticStack } from "@/components/ui/elastic-stack";
+import { getAvatarDataUri } from "@/lib/avatar";
 
 export function RoomHeader({
   room,
@@ -15,22 +17,39 @@ export function RoomHeader({
   currentUser,
   isOwner,
   onLeave,
+  onlineUserIds = [],
 }: {
   room: RoomSnapshot["room"];
   members: RoomMember[];
   currentUser: RoomMember;
   isOwner: boolean;
   onLeave: () => void;
+  onlineUserIds?: string[];
 }) {
   async function handleCopyCode() {
     await navigator.clipboard.writeText(room.roomCode);
     toast.success("Room code copied.");
   }
 
+  const stackItems = members.map((member) => ({
+    id: member.id,
+    name: member.name,
+    image: getAvatarDataUri(member.id),
+    isOnline: onlineUserIds.includes(member.id),
+  }));
+
   return (
     <header className="flex items-center justify-between border-b border-border pb-4">
       {/* Left side: Room Details */}
       <div className="flex items-center gap-3">
+        <Link
+          href="/"
+          className="group flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          title="Back to Dashboard"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div className="h-4 w-px bg-border" />
         <h1 className="text-sm font-semibold tracking-tight text-foreground sm:text-base">
           {room.name}
         </h1>
@@ -47,18 +66,9 @@ export function RoomHeader({
 
       {/* Right side: Participants & Actions */}
       <div className="flex items-center gap-4">
-        {/* Compact Participants indicator */}
+        {/* ElasticStack Participants */}
         <div className="flex items-center gap-2">
-          <div className="flex -space-x-1.5">
-            {members.slice(0, 3).map((member) => (
-              <Avatar key={member.id} className="h-6 w-6 border-2 border-background">
-                <AvatarImage src={member.image ?? undefined} alt={member.name} />
-                <AvatarFallback className="text-[9px] bg-muted text-muted-foreground font-semibold font-sans">
-                  {member.name.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-          </div>
+          <ElasticStack items={stackItems} itemSize={26} overlap={6} pushForce={5} />
           <span className="text-xs text-muted-foreground font-medium hidden sm:inline-block">
             {members.length} {members.length === 1 ? "member" : "members"}
           </span>

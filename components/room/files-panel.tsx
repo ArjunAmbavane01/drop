@@ -18,13 +18,27 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
 import { fetchJson } from "@/lib/fetcher";
+import {
+  renameFileAction,
+  renameFolderAction,
+  deleteFileAction,
+  deleteFolderAction,
+} from "@/server/rooms/actions";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { getFileIcon } from "./file-icons";
+import { getFileIcon, FileIconMap } from "./file-icons";
+import {
+  Files,
+  FolderItem as AnimateFolderItem,
+  FolderTrigger as AnimateFolderTrigger,
+  FolderContent as AnimateFolderContent,
+  FileItem as AnimateFileItem,
+  SubFiles as AnimateSubFiles,
+} from "@/components/animate-ui/components/radix/files";
 
 type UploadSignerResponse = { objectKey: string; uploadUrl: string };
 
@@ -462,11 +476,7 @@ export function FilesPanel({
     if (!renameTarget) return;
 
     try {
-      await fetchJson(`/api/files/${renameTarget.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: renameValue }),
-      });
+      await renameFileAction(renameTarget.id, { fileName: renameValue });
       onFileRename(renameTarget.id, renameValue);
       setRenameTarget(null);
       toast.success("File renamed.");
@@ -479,11 +489,7 @@ export function FilesPanel({
     if (!renameFolderTarget) return;
 
     try {
-      await fetchJson(`/api/folders/${renameFolderTarget.uploadId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: renameFolderValue }),
-      });
+      await renameFolderAction(renameFolderTarget.uploadId, { name: renameFolderValue });
       onFolderRename(renameFolderTarget.uploadId, renameFolderValue);
       setRenameFolderTarget(null);
       toast.success("Folder renamed.");
@@ -494,9 +500,7 @@ export function FilesPanel({
 
   async function handleDelete(fileId: string) {
     try {
-      await fetchJson(`/api/files/${fileId}`, {
-        method: "DELETE",
-      });
+      await deleteFileAction(fileId);
       onFileDelete(fileId);
       toast.success("File deleted.");
     } catch (error) {
@@ -506,9 +510,7 @@ export function FilesPanel({
 
   async function handleDeleteFolder(uploadId: string) {
     try {
-      await fetchJson(`/api/folders/${uploadId}`, {
-        method: "DELETE",
-      });
+      await deleteFolderAction(uploadId);
       onFolderDelete(uploadId);
       toast.success("Folder deleted.");
     } catch (error) {
@@ -662,139 +664,119 @@ export function FilesPanel({
               <p className="text-[11px] text-muted-foreground/60 mt-1">Uploaded files appear here for everyone</p>
             </div>
           ) : (
-            groupedItems.map((item) => {
-              if (item.type === "file") {
-                const { file } = item;
-                return (
-                  <motion.div
-                    key={file.id}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-3 transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      {file.thumbnailUrl ? (
-                        <Image
-                          src={file.thumbnailUrl}
-                          alt={file.fileName}
-                          width={36}
-                          height={36}
-                          className="h-9 w-9 rounded object-cover border border-border"
-                        />
-                      ) : (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-muted">
-                          {getFileIcon(file.fileName, "h-4 w-4 text-muted-foreground/75")}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-medium text-foreground leading-none">{file.fileName}</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground leading-none">
-                          {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="ghost" size="icon-xs" onClick={() => handleDownload(file.id)} title="Download file">
-                        <Download className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => {
-                          setRenameTarget(file);
-                          setRenameValue(file.fileName);
-                        }}
-                        title="Rename file"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => handleDelete(file.id)}
-                        className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10"
-                        title="Delete file"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </motion.div>
-                );
-              } else {
-                const folder = item;
-                const isFolderExpanded = expandedPaths[folder.uploadId] ?? false;
-                const tree = buildTree(folder.files);
+            <Files className="w-full p-0 bg-transparent space-y-2 border-none">
+              {groupedItems.map((item) => {
+                if (item.type === "file") {
+                  const { file } = item;
+                  const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
+                  const Icon = FileIconMap[ext] || File;
 
-                return (
-                  <motion.div
-                    key={folder.uploadId}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex flex-col rounded-lg border border-border bg-card transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
-                  >
-                    {/* Folder Header Row */}
-                    <div
-                      onClick={() => togglePath(folder.uploadId)}
-                      className="flex items-center justify-between gap-4 p-3 cursor-pointer select-none group"
+                  const ThumbnailIcon = () => (
+                    <Image
+                      src={file.thumbnailUrl!}
+                      alt={file.fileName}
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 rounded object-cover border border-border"
+                    />
+                  );
+
+                  return (
+                    <AnimateFileItem
+                      key={file.id}
+                      icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
+                      className="group border border-border/40 rounded-xl p-3 hover:border-neutral-300 dark:hover:border-neutral-800 transition-colors pointer-events-auto bg-card"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <motion.span
-                          animate={{ rotate: isFolderExpanded ? 90 : 0 }}
-                          transition={{ duration: 0.15 }}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-border bg-muted/30"
-                        >
-                          <ChevronRight className="h-4 w-4 text-muted-foreground/75" />
-                        </motion.span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <Folder className="h-3.5 w-3.5 shrink-0 text-blue-500/80 dark:text-blue-400/80" />
-                            <p className="truncate text-xs font-semibold text-foreground leading-none">{folder.name}</p>
+                      <div className="flex items-center justify-between w-full pointer-events-auto">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-foreground leading-none">{file.fileName}</p>
+                            <p className="mt-1.5 text-[11px] text-muted-foreground leading-none">
+                              {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
+                            </p>
                           </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground leading-none">
-                            {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
-                          </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 shrink-0 pointer-events-auto">
+                          <Button variant="ghost" size="icon-xs" className="cursor-pointer" onClick={() => handleDownload(file.id)} title="Download file">
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="cursor-pointer"
+                            onClick={() => {
+                              setRenameTarget(file);
+                              setRenameValue(file.fileName);
+                            }}
+                            title="Rename file"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 cursor-pointer"
+                            onClick={() => handleDelete(file.id)}
+                            title="Delete file"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
+                    </AnimateFileItem>
+                  );
+                } else {
+                  const folder = item;
+                  const tree = buildTree(folder.files);
 
-                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon-xs" onClick={() => handleDownloadFolder(folder.uploadId)} title="Download folder (ZIP)">
-                          <Download className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => {
-                            setRenameFolderTarget(folder);
-                            setRenameFolderValue(folder.name);
-                          }}
-                          title="Rename folder"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => handleDeleteFolder(folder.uploadId)}
-                          className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10"
-                          title="Delete folder"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
+                  return (
+                    <AnimateFolderItem
+                      key={folder.uploadId}
+                      value={folder.uploadId}
+                      className="border border-border/40 rounded-xl bg-card transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
+                    >
+                      <AnimateFolderTrigger className="p-3 w-full cursor-pointer pointer-events-auto">
+                        <div className="flex items-center justify-between w-full pointer-events-auto">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-foreground leading-none">{folder.name}</p>
+                            <p className="mt-1.5 text-[11px] text-muted-foreground leading-none">
+                              {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
+                            </p>
+                          </div>
 
-                    {/* Folder Tree View when Expanded */}
-                    {isFolderExpanded && (
-                      <div className="border-t border-border/50 py-2 bg-muted/10 dark:bg-muted/5 rounded-b-lg">
+                          <div className="flex items-center gap-1 shrink-0 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon-xs" className="cursor-pointer" onClick={() => handleDownloadFolder(folder.uploadId)} title="Download folder (ZIP)">
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="cursor-pointer"
+                              onClick={() => {
+                                setRenameFolderTarget(folder);
+                                setRenameFolderValue(folder.name);
+                              }}
+                              title="Rename folder"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 cursor-pointer"
+                              onClick={() => handleDeleteFolder(folder.uploadId)}
+                              title="Delete folder"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </AnimateFolderTrigger>
+                      <AnimateFolderContent className="bg-muted/10 dark:bg-muted/5 py-2 px-1 border-t border-border/20 rounded-b-xl">
                         <FolderTree
                           nodes={tree}
                           uploadId={folder.uploadId}
-                          depth={1}
-                          expandedPaths={expandedPaths}
-                          togglePath={togglePath}
                           onFileDownload={handleDownload}
                           onFileRename={(file) => {
                             setRenameTarget(file);
@@ -802,12 +784,12 @@ export function FilesPanel({
                           }}
                           onFileDelete={handleDelete}
                         />
-                      </div>
-                    )}
-                  </motion.div>
-                );
-              }
-            })
+                      </AnimateFolderContent>
+                    </AnimateFolderItem>
+                  );
+                }
+              })}
+            </Files>
           )}
         </div>
       </div>
@@ -863,18 +845,12 @@ export function FilesPanel({
 function FolderTree({
   nodes,
   uploadId,
-  depth = 1,
-  expandedPaths,
-  togglePath,
   onFileDownload,
   onFileRename,
   onFileDelete,
 }: {
   nodes: Record<string, TreeNode>;
   uploadId: string;
-  depth?: number;
-  expandedPaths: Record<string, boolean>;
-  togglePath: (path: string) => void;
   onFileDownload: (fileId: string) => void;
   onFileRename: (file: RoomFile) => void;
   onFileDelete: (fileId: string) => void;
@@ -889,118 +865,101 @@ function FolderTree({
   });
 
   return (
-    <div className="flex flex-col">
+    <AnimateSubFiles className="p-0 space-y-0.5 bg-transparent border-none">
       {sortedNodeNames.map((name) => {
         const node = nodes[name];
         const isDir = node.type === "directory";
         const pathKey = `${uploadId}/${node.relativePath}`;
-        const isExpanded = expandedPaths[pathKey] ?? false;
 
         if (isDir) {
           return (
-            <div key={pathKey} className="flex flex-col">
-              <div
-                onClick={() => togglePath(pathKey)}
-                className="flex items-center gap-1.5 py-1 px-2 hover:bg-muted/50 rounded cursor-pointer select-none text-xs font-medium text-muted-foreground group"
-                style={{ paddingLeft: `${depth * 12 + 8}px` }}
-              >
-                <motion.span
-                  animate={{ rotate: isExpanded ? 90 : 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex shrink-0 items-center justify-center w-3 h-3 text-muted-foreground/60"
-                >
-                  <ChevronRight className="w-3 h-3" />
-                </motion.span>
-                <Folder className="w-3.5 h-3.5 shrink-0 text-blue-500/70 dark:text-blue-400/60" />
-                <span className="truncate text-foreground/80 group-hover:text-foreground">{node.name}</span>
-              </div>
-
-              {isExpanded && (
+            <AnimateFolderItem key={pathKey} value={pathKey} className="border-none bg-transparent">
+              <AnimateFolderTrigger className="p-2 w-full cursor-pointer hover:bg-muted/40 rounded-lg">
+                <span className="text-xs font-semibold text-foreground/80">{node.name}</span>
+              </AnimateFolderTrigger>
+              <AnimateFolderContent className="bg-transparent pl-4 border-l border-border/60 ml-3 py-1">
                 <FolderTree
                   nodes={node.children}
                   uploadId={uploadId}
-                  depth={depth + 1}
-                  expandedPaths={expandedPaths}
-                  togglePath={togglePath}
                   onFileDownload={onFileDownload}
                   onFileRename={onFileRename}
                   onFileDelete={onFileDelete}
                 />
-              )}
-            </div>
+              </AnimateFolderContent>
+            </AnimateFolderItem>
           );
         } else {
           const file = node.file!;
-          return (
-            <div
-              key={file.id}
-              className="flex items-center justify-between py-1 px-2 hover:bg-muted/50 rounded group text-xs text-foreground/80 hover:text-foreground"
-              style={{ paddingLeft: `${depth * 12 + 16}px` }}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                {file.thumbnailUrl ? (
-                  <div className="relative h-4 w-4 shrink-0 rounded overflow-hidden border border-border">
-                    <Image
-                      src={file.thumbnailUrl}
-                      alt={file.fileName}
-                      fill
-                      sizes="16px"
-                      className="object-cover"
-                    />
-                  </div>
-                ) : (
-                  <span className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60 flex items-center justify-center">
-                    {getFileIcon(file.fileName, "w-3.5 h-3.5")}
-                  </span>
-                )}
-                <span className="truncate leading-none">{node.name}</span>
-                <span className="text-[10px] text-muted-foreground/50 shrink-0 font-normal">
-                  ({formatFileSize(file.sizeBytes)})
-                </span>
-              </div>
+          const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
+          const Icon = FileIconMap[ext] || File;
 
-              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity ml-2">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="h-5 w-5 [&_svg]:size-3"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFileDownload(file.id);
-                  }}
-                  title="Download file"
-                >
-                  <Download />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="h-5 w-5 [&_svg]:size-3"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFileRename(file);
-                  }}
-                  title="Rename file"
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="h-5 w-5 hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 [&_svg]:size-3"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFileDelete(file.id);
-                  }}
-                  title="Delete file"
-                >
-                  <Trash2 />
-                </Button>
+          const ThumbnailIcon = () => (
+            <Image
+              src={file.thumbnailUrl!}
+              alt={file.fileName}
+              width={18}
+              height={18}
+              className="h-4.5 w-4.5 rounded object-cover border border-border"
+            />
+          );
+
+          return (
+            <AnimateFileItem
+              key={file.id}
+              icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
+              className="group p-2 cursor-default hover:bg-muted/40 rounded-lg"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate leading-none text-xs font-medium text-foreground">{node.name}</span>
+                  <span className="text-[10px] text-muted-foreground/50 shrink-0 font-normal">
+                    ({formatFileSize(file.sizeBytes)})
+                  </span>
+                </div>
+
+                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity ml-2">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="h-5 w-5 [&_svg]:size-3 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFileDownload(file.id);
+                    }}
+                    title="Download file"
+                  >
+                    <Download />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="h-5 w-5 [&_svg]:size-3 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFileRename(file);
+                    }}
+                    title="Rename file"
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="h-5 w-5 hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 [&_svg]:size-3 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFileDelete(file.id);
+                    }}
+                    title="Delete file"
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
               </div>
-            </div>
+            </AnimateFileItem>
           );
         }
       })}
-    </div>
+    </AnimateSubFiles>
   );
 }

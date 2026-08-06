@@ -84,7 +84,7 @@ export const rooms = pgTable(
   },
   (table) => ({
     roomCodeIdx: uniqueIndex("rooms_room_code_idx").on(table.roomCode),
-    ownerIdx: uniqueIndex("rooms_owner_idx").on(table.ownerId),
+    ownerIdx: index("rooms_owner_idx").on(table.ownerId),
   }),
 );
 

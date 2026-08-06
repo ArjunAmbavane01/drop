@@ -11,7 +11,7 @@ export default async function SignInPage() {
   if (session) redirect("/");
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-12">
+    <main className="flex min-h-screen items-center justify-center p-5">
       <div className="w-full max-w-md">
         <AuthForm mode="sign-in" />
         <p className="text-center text-sm text-muted-foreground">

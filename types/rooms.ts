@@ -1,3 +1,11 @@
+export type Room = {
+  id: string;
+  name: string;
+  roomCode: string;
+  ownerId: string;
+  createdAt: string | Date;
+};
+
 export type RoomMember = {
   id: string;
   name: string;
@@ -17,7 +25,6 @@ export type RoomFile = {
   uploadId: string | null;
   uploadName: string | null;
 };
-
 
 export type RoomSnapshot = {
   room: {
@@ -44,4 +51,3 @@ export type RoomEvent =
   | { id: number; type: "folder.deleted"; payload: { uploadId: string } }
   | { id: number; type: "room.cleared"; payload: Record<string, never> }
   | { id: number; type: "member.joined" | "member.left"; payload: { member: RoomMember } };
-

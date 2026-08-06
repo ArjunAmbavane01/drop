@@ -7,6 +7,7 @@ import type { RoomEvent } from "@/types/rooms";
 export function useRoomEvents(
   roomId: string,
   onEvent: (event: RoomEvent) => void,
+  onPresence?: (userIds: string[]) => void,
 ) {
   const lastEventIdRef = useRef(0);
 
@@ -16,9 +17,14 @@ export function useRoomEvents(
     );
 
     eventSource.onmessage = (message) => {
-      const event = JSON.parse(message.data) as RoomEvent;
-      lastEventIdRef.current = event.id;
-      onEvent(event);
+      const data = JSON.parse(message.data);
+      if (data.type === "presence") {
+        onPresence?.(data.userIds);
+      } else {
+        const event = data as RoomEvent;
+        lastEventIdRef.current = event.id;
+        onEvent(event);
+      }
     };
 
     eventSource.onerror = () => {
