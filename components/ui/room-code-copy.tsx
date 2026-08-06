@@ -26,7 +26,7 @@ export function RoomCodeCopy({ code, className = "" }: RoomCodeCopyProps) {
     return (
         <button
             onClick={handleCopy}
-            className={`inline-flex items-center gap-2 mt-1 text-xs font-mono text-muted-foreground bg-muted/60 px-2 py-1 rounded transition-colors hover:bg-muted/80 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${className}`}
+            className={`inline-flex items-center gap-2 text-xs font-mono text-muted-foreground bg-muted/60 px-2 py-1 rounded transition-colors hover:bg-muted/80 hover:text-foreground cursor-pointer ${className}`}
         >
             <span>{code}</span>
             <motion.div

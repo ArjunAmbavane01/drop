@@ -1,8 +1,23 @@
 "use client";
 
-import { LayoutGroup, motion } from "motion/react";
-import RoomCard from "./room-card";
 import { Room } from "@/types/rooms";
+import { formatDistanceToNow } from "date-fns";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Trash2, Edit2 } from "lucide-react";
+import { RoomRowCard } from "./room-row-card";
+import { RoomRowList } from "./room-row-list";
 
 interface MyRoomsListProps {
   rooms: Room[];
@@ -15,39 +30,100 @@ export function MyRoomsList({
   onRename,
   onDelete,
 }: MyRoomsListProps) {
+  const router = useRouter();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
+
+  const handleDeleteClick = (room: Room) => {
+    setRoomToDelete(room);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (roomToDelete) {
+      onDelete(roomToDelete.id);
+      setDeleteDialogOpen(false);
+      setRoomToDelete(null);
+    }
+  };
+
   return (
-    <section>
-      <div className="flex items-center justify-between pb-3 border-b border-border/40 mb-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          My Rooms ({rooms.length}/5)
-        </h3>
-      </div>
-      {rooms.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-2 italic">
-          You haven&apos;t created any rooms yet.
-        </p>
-      ) : (
-        <LayoutGroup id="my-rooms-group">
-          <motion.div layout className="divide-y divide-border/30">
-            {rooms.map((room) => (
-              <motion.div
-                key={room.id}
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ type: "spring", stiffness: 500, damping: 40 }}
-              >
-                <RoomCard
+    <>
+      <RoomRowList
+        title="My Rooms"
+        count={rooms.length}
+        groupId="my-rooms-list"
+        emptyState={
+          <p className="text-sm text-muted-foreground p-3 italic">
+            You haven&apos;t created any rooms yet.
+          </p>
+        }
+        children={
+          rooms.length > 0
+            ? rooms.map((room) => {
+              const createdAtText = formatDistanceToNow(
+                new Date(room.createdAt),
+                { addSuffix: true }
+              );
+
+              return (
+                <RoomRowCard
+                  key={room.id}
                   room={room}
-                  onRename={onRename}
-                  onDelete={onDelete}
+                  onClick={() => router.push(`/rooms/${room.id}`)}
+                  subtitle={
+                    <span className="text-xs text-muted-foreground">
+                      {createdAtText}
+                    </span>
+                  }
+                  actions={
+                    <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8"
+                        onClick={() => onRename(room)}
+                        title="Rename"
+                      >
+                        <Edit2 className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteClick(room)}
+                        title="Delete"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  }
                 />
-              </motion.div>
-            ))}
-          </motion.div>
-        </LayoutGroup>
-      )}
-    </section>
+              );
+            })
+            : undefined
+        }
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete room</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{roomToDelete?.name}</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

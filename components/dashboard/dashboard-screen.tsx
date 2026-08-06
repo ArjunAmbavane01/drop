@@ -183,9 +183,9 @@ export function DashboardScreen({
 
   return (
     <div className="min-h-screen bg-background w-full">
-      <div className="flex flex-col mx-auto max-w-5xl w-full py-8 px-5">
+      <div className="flex flex-col mx-auto max-w-3xl w-full py-8 px-5">
         {/* Header */}
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between px-3">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <FolderOpen className="size-5" />
@@ -197,6 +197,7 @@ export function DashboardScreen({
               </p>
             </div>
           </div>
+          
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <UserMenu user={currentUser} />
@@ -212,7 +213,7 @@ export function DashboardScreen({
           isJoining={isJoining}
         />
 
-        <div className="space-y-12 mt-8">
+        <div className="space-y-16">
           {/* My Rooms List */}
           <MyRoomsList
             rooms={myRooms}

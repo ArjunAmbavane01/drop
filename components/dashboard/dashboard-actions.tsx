@@ -96,7 +96,7 @@ export function DashboardActions({
   const isRoomsFull = roomCount >= maxRooms;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-4 mt-16">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-3 mt-16 mb-10">
       <div className="min-w-0 flex-1 space-y-1">
         <h2 className="text-xl font-medium tracking-tight">Rooms Dashboard</h2>
         <p className="text-sm text-muted-foreground">
