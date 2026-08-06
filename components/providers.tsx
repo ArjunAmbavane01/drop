@@ -14,11 +14,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
-    return null;
-  }
+  if (!mounted) return null;
+
+  // React 19 / Next 16 fix: suppress the <script> tag warning by
+  // telling next-themes to use type="application/json" instead of
+  // type="text/javascript", which React won't try to execute
+  const scriptProps =
+    typeof window === "undefined"
+      ? undefined
+      : ({ type: "application/json" } as const);
+
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider scriptProps={scriptProps} attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider delay={100}>
         {children}
         <Toaster richColors position="top-right" />
