@@ -26,7 +26,7 @@ function broadcastPresence(roomId: string) {
     for (const controller of userMap) {
       try {
         controller.enqueue(encoder.encode(message));
-      } catch (e) {
+      } catch {
         // Ignored
       }
     }
@@ -88,7 +88,7 @@ export async function GET(
           if (closed) return;
           try {
             controller.enqueue(encoder.encode(": keepalive\n\n"));
-          } catch (e) {}
+          } catch {}
         }, SSE_KEEPALIVE_MS);
 
         const abort = () => {
@@ -116,7 +116,7 @@ export async function GET(
 
           try {
             controller.close();
-          } catch (e) {}
+          } catch {}
         };
 
         request.signal.addEventListener("abort", abort);

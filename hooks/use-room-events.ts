@@ -10,6 +10,13 @@ export function useRoomEvents(
   onPresence?: (userIds: string[]) => void,
 ) {
   const lastEventIdRef = useRef(0);
+  const onEventRef = useRef(onEvent);
+  const onPresenceRef = useRef(onPresence);
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+    onPresenceRef.current = onPresence;
+  });
 
   useEffect(() => {
     const eventSource = new EventSource(
@@ -19,11 +26,11 @@ export function useRoomEvents(
     eventSource.onmessage = (message) => {
       const data = JSON.parse(message.data);
       if (data.type === "presence") {
-        onPresence?.(data.userIds);
+        onPresenceRef.current?.(data.userIds);
       } else {
         const event = data as RoomEvent;
         lastEventIdRef.current = event.id;
-        onEvent(event);
+        onEventRef.current(event);
       }
     };
 
@@ -34,5 +41,5 @@ export function useRoomEvents(
     return () => {
       eventSource.close();
     };
-  }, [onEvent, roomId]);
+  }, [roomId]);
 }

@@ -43,7 +43,7 @@ export function ElasticStack({
           let translateX = 0;
           let scale = 1;
           let zIndex = i; // Base stacking order
-          let isHovered = hoveredIndex === i;
+          const isHovered = hoveredIndex === i;
 
           if (hoveredIndex !== null) {
             if (i > hoveredIndex) {

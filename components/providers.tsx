@@ -1,24 +1,25 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { ThemeProvider } from "next-themes";
-
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { useEffect, useState } from "react";
+
+const emptySubscribe = () => () => {};
+
+function useMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
-
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   if (!mounted) return null;
 
-  // React 19 / Next 16 fix: suppress the <script> tag warning by
-  // telling next-themes to use type="application/json" instead of
-  // type="text/javascript", which React won't try to execute
   const scriptProps =
     typeof window === "undefined"
       ? undefined

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
-import { ThemeToggle } from "@/components/room/theme-toggle";
-import { UserMenu } from "@/components/room/user-menu";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { UserMenu } from "@/components/shared/user-menu";
 import { DashboardActions } from "./dashboard-actions";
 import { MyRoomsList } from "./my-rooms-list";
 import { JoinedRoomsList } from "./joined-rooms-list";

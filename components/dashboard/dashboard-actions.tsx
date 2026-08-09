@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Key, Plus, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,10 +26,12 @@ import {
   Field,
   FieldError,
 } from "@/components/ui/field";
-import { createRoomSchema, joinRoomSchema } from "@/lib/validators";
-
-type CreateRoomFormData = z.infer<typeof createRoomSchema>;
-type JoinRoomFormData = z.infer<typeof joinRoomSchema>;
+import {
+  createRoomSchema,
+  joinRoomSchema,
+  type CreateRoomInput,
+  type JoinRoomInput,
+} from "@/lib/validators";
 
 interface DashboardActionsProps {
   roomCount: number;
@@ -52,7 +53,7 @@ export function DashboardActions({
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
 
-  const createForm = useForm<CreateRoomFormData>({
+  const createForm = useForm<CreateRoomInput>({
     resolver: zodResolver(createRoomSchema),
     defaultValues: {
       roomName: "",
@@ -60,7 +61,7 @@ export function DashboardActions({
     mode: "onBlur",
   });
 
-  const joinForm = useForm<JoinRoomFormData>({
+  const joinForm = useForm<JoinRoomInput>({
     resolver: zodResolver(joinRoomSchema),
     defaultValues: {
       roomCode: "",
@@ -69,7 +70,7 @@ export function DashboardActions({
     reValidateMode: "onChange",
   });
 
-  const handleCreateRoom = async (data: CreateRoomFormData) => {
+  const handleCreateRoom = async (data: CreateRoomInput) => {
     try {
       await onCreateRoom(data.roomName);
       createForm.reset();
@@ -81,7 +82,7 @@ export function DashboardActions({
     }
   };
 
-  const handleJoinRoom = async (data: JoinRoomFormData) => {
+  const handleJoinRoom = async (data: JoinRoomInput) => {
     try {
       await onJoinRoom(data.roomCode);
       joinForm.reset();

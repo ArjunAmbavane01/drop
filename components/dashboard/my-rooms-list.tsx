@@ -58,52 +58,51 @@ export function MyRoomsList({
             You haven&apos;t created any rooms yet.
           </p>
         }
-        children={
-          rooms.length > 0
-            ? rooms.map((room) => {
-              const createdAtText = formatDistanceToNow(
-                new Date(room.createdAt),
-                { addSuffix: true }
-              );
+      >
+        {rooms.length > 0
+          ? rooms.map((room) => {
+            const createdAtText = formatDistanceToNow(
+              new Date(room.createdAt),
+              { addSuffix: true }
+            );
 
-              return (
-                <RoomRowCard
-                  key={room.id}
-                  room={room}
-                  onClick={() => router.push(`/rooms/${room.id}`)}
-                  subtitle={
-                    <span className="text-xs text-muted-foreground">
-                      {createdAtText}
-                    </span>
-                  }
-                  actions={
-                    <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-8"
-                        onClick={() => onRename(room)}
-                        title="Rename"
-                      >
-                        <Edit2 className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDeleteClick(room)}
-                        title="Delete"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  }
-                />
-              );
-            })
-            : undefined
-        }
-      />
+            return (
+              <RoomRowCard
+                key={room.id}
+                room={room}
+                onClick={() => router.push(`/rooms/${room.id}`)}
+                subtitle={
+                  <span className="text-xs text-muted-foreground">
+                    {createdAtText}
+                  </span>
+                }
+                actions={
+                  <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-8"
+                      onClick={() => onRename(room)}
+                      title="Rename"
+                    >
+                      <Edit2 className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDeleteClick(room)}
+                      title="Delete"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                }
+              />
+            );
+          })
+          : null}
+      </RoomRowList>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

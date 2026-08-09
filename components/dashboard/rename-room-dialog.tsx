@@ -3,8 +3,6 @@
 import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-
 import {
   Dialog,
   DialogContent,
@@ -17,10 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Field, FieldError } from "@/components/ui/field";
-import { createRoomSchema } from "@/lib/validators";
-import { Room } from "@/types/rooms";
-
-type RenameFormData = z.infer<typeof createRoomSchema>;
+import { createRoomSchema, type CreateRoomInput } from "@/lib/validators";
+import type { Room } from "@/types/rooms";
 
 interface RenameRoomDialogProps {
   open: boolean;
@@ -37,7 +33,7 @@ export function RenameRoomDialog({
   onRename,
   isRenaming,
 }: RenameRoomDialogProps) {
-  const { control, handleSubmit, reset } = useForm<RenameFormData>({
+  const { control, handleSubmit, reset } = useForm<CreateRoomInput>({
     resolver: zodResolver(createRoomSchema),
     defaultValues: {
       roomName: "",
@@ -50,7 +46,7 @@ export function RenameRoomDialog({
     }
   }, [room, reset]);
 
-  const onSubmit = async (data: RenameFormData) => {
+  const onSubmit = async (data: CreateRoomInput) => {
     await onRename(data.roomName);
     onOpenChange(false);
   };

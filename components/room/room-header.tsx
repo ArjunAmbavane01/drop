@@ -5,7 +5,7 @@ import { ArrowLeft, Trash2, DoorOpen } from "lucide-react";
 
 import type { RoomMember, RoomSnapshot } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/room/theme-toggle";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { RoomCodeCopy } from "@/components/ui/room-code-copy";
 import { ElasticStack } from "@/components/ui/elastic-stack";
 import { getAvatarDataUri } from "@/lib/avatar";
@@ -24,7 +24,6 @@ import {
 export function RoomHeader({
   room,
   members,
-  currentUser,
   isOwner,
   onLeave,
   onClearRoom,
@@ -32,7 +31,6 @@ export function RoomHeader({
 }: {
   room: RoomSnapshot["room"];
   members: RoomMember[];
-  currentUser: RoomMember;
   isOwner: boolean;
   onLeave: () => void;
   onClearRoom: () => void;

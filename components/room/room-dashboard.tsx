@@ -202,7 +202,6 @@ export function RoomDashboard({
         <RoomHeader
           room={snapshot.room}
           members={snapshot.members}
-          currentUser={currentUser}
           isOwner={isOwner}
           onLeave={handleLeaveRoom}
           onClearRoom={handleClearSession}

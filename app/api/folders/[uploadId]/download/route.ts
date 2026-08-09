@@ -1,5 +1,10 @@
 import { eq } from "drizzle-orm";
 import { PassThrough } from "stream";
+import type { Archiver, ArchiverOptions } from "archiver";
+import * as archiverModule from "archiver";
+
+type ArchiverFactory = (format: "zip" | "tar" | string, options?: ArchiverOptions) => Archiver;
+const archiver = ((archiverModule as unknown as { default?: ArchiverFactory }).default || archiverModule) as unknown as ArchiverFactory;
 
 import { getDb } from "@/db";
 import { uploads } from "@/db/schema";
@@ -7,9 +12,6 @@ import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomAccess } from "@/server/rooms/auth";
 import { listObjectsWithPrefix, getObjectStream } from "@/server/r2/files";
 import { jsonError } from "@/lib/http";
-
-const archiver = require("archiver");
-
 
 export async function GET(
   _request: Request,
@@ -58,7 +60,7 @@ export async function GET(
 
     const safeFolderName = upload.name.replace(/[^a-zA-Z0-9_-]/g, "_") || "folder";
 
-    return new Response(stream as any, {
+    return new Response(stream as unknown as BodyInit, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${safeFolderName}.zip"`,

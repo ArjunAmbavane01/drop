@@ -16,7 +16,7 @@ import {
   signUpSchema,
   type SignInValues,
   type SignUpValues,
-} from "./auth-schema";
+} from "@/lib/validators";
 
 type AuthMode = "sign-in" | "sign-up";
 

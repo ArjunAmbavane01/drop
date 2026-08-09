@@ -13,8 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Copy, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 import { RoomRowCard } from "./room-row-card";
 import { RoomRowList } from "./room-row-list";
 
@@ -55,9 +55,9 @@ export function JoinedRoomsList({
             You haven&apos;t joined any rooms yet.
           </p>
         }
-        children={
-          rooms.length > 0
-            ? rooms.map((room) => {
+      >
+        {rooms.length > 0
+          ? rooms.map((room) => {
               const isPending = room.id.startsWith("temp-join-");
 
               return (
@@ -83,9 +83,8 @@ export function JoinedRoomsList({
                 />
               );
             })
-            : undefined
-        }
-      />
+          : null}
+      </RoomRowList>
 
       <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
         <AlertDialogContent>
