@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useRouter } from "next/navigation";
 
 export function RoomHeader({
   room,
@@ -36,6 +37,8 @@ export function RoomHeader({
   onClearRoom: () => void;
   onlineUserIds?: string[];
 }) {
+  const router = useRouter();
+
   const stackItems = members.map((member) => ({
     id: member.id,
     name: member.name,
@@ -46,23 +49,19 @@ export function RoomHeader({
   return (
     <header className="flex items-center justify-between gap-4 pb-4">
       {/* Left side: Back button & Room Details */}
-      <div className="flex items-center gap-3 min-w-0">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-foreground shrink-0 cursor-pointer"
+      <div className="flex items-center gap-8">
+        <Button
+          size="icon-sm"
+          variant={"outline"}
+          onClick={() => { router.push("/") }}
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Back to rooms</span>
-          <span className="sm:hidden">Back</span>
-        </Link>
-
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h1 className="text-sm font-semibold tracking-tight text-foreground sm:text-base truncate">
+          <ArrowLeft />
+        </Button>
+        <div className="flex items-center gap-3">
+          <h1 className="font-semibold text-foreground truncate">
             {room.name}
           </h1>
-          <div className="shrink-0">
-            <RoomCodeCopy code={room.roomCode} />
-          </div>
+          <RoomCodeCopy code={room.roomCode} />
         </div>
       </div>
 

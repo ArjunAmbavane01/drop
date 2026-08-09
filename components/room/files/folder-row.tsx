@@ -37,49 +37,47 @@ export function FolderRow({
   return (
     <AnimateFolderItem
       value={folder.uploadId}
-      className="rounded-lg bg-transparent border-none transition-colors"
+      className="rounded-lg border-none transition-colors w-full"
     >
-      <AnimateFolderTrigger className="p-2.5 w-full cursor-pointer pointer-events-auto hover:bg-muted/50 dark:hover:bg-muted/25 rounded-lg">
-        <div className="flex items-center justify-between w-full pointer-events-auto">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-foreground leading-snug">{folder.name}</p>
-            <p className="text-[11px] text-muted-foreground leading-normal">
-              {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
-            </p>
-          </div>
+      <AnimateFolderTrigger className="flex items-center justify-between w-full cursor-pointer">
+        <div className="space-y-0.5">
+          <p className="truncate text-sm font-medium text-foreground leading-snug">{folder.name}</p>
+          <p className="text-xs text-muted-foreground leading-normal">
+            {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
+          </p>
+        </div>
 
-          <div className="flex items-center gap-0.5 shrink-0 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="cursor-pointer text-muted-foreground hover:text-foreground"
-              onClick={() => onDownloadFolder(folder.uploadId)}
-              title="Download folder (ZIP)"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="cursor-pointer text-muted-foreground hover:text-foreground"
-              onClick={() => onRenameFolder(folder)}
-              title="Rename folder"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-              onClick={() => onDeleteFolder(folder.uploadId)}
-              title="Delete folder"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            onClick={() => onDownloadFolder(folder.uploadId)}
+            title="Download folder (ZIP)"
+          >
+            <Download className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            onClick={() => onRenameFolder(folder)}
+            title="Rename folder"
+          >
+            <Pencil className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+            onClick={() => onDeleteFolder(folder.uploadId)}
+            title="Delete folder"
+          >
+            <Trash2 className="size-4" />
+          </Button>
         </div>
       </AnimateFolderTrigger>
-      <AnimateFolderContent className="bg-transparent py-1 px-1 pl-4 border-l border-border/50 ml-3">
+      <AnimateFolderContent className="py-1 pl-2">
         <FolderTree
           nodes={tree}
           uploadId={folder.uploadId}

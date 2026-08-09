@@ -153,7 +153,7 @@ export function FilesPanel({
           {groupedItems.length === 0 ? (
             <EmptyFiles />
           ) : (
-            <Files className="w-full p-0 bg-transparent space-y-1 border-none">
+            <Files className="w-full p-0 pt-3 bg-transparent space-y-1 border-none">
               {groupedItems.map((item) => {
                 if (item.type === "file") {
                   return (

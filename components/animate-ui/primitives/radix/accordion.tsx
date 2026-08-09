@@ -88,7 +88,7 @@ type AccordionContentProps = Omit<
 
 function AccordionContent({
   keepRendered = false,
-  transition = { duration: 0.35, ease: 'easeInOut' },
+  transition = { duration: 0.15, ease: 'easeInOut' },
   ...props
 }: AccordionContentProps) {
   const { isOpen } = useAccordionItem();
