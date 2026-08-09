@@ -1,10 +1,22 @@
-export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit) {
+export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
-  const data = (await response.json()) as T & { error?: string };
+  
+  const contentType = response.headers.get("content-type");
+  let data: any = null;
 
-  if (!response.ok) {
-    throw new Error(data.error ?? "Request failed.");
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
   }
 
-  return data;
+  if (!response.ok) {
+    const errorMsg = data?.error || (await response.text().catch(() => "")) || `Request failed with status ${response.status}`;
+    throw new Error(errorMsg);
+  }
+
+  return (data !== null ? data : ((await response.text().catch(() => "")) as unknown as T));
 }
+

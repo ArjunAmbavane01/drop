@@ -13,20 +13,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Copy, LogOut } from "lucide-react";
 import { RoomRowCard } from "./room-row-card";
 import { RoomRowList } from "./room-row-list";
 
 interface JoinedRoomsListProps {
   rooms: Room[];
-  onCopyCode: (code: string) => void;
   onLeave: (roomId: string) => void;
 }
 
 export function JoinedRoomsList({
   rooms,
-  onCopyCode,
   onLeave,
 }: JoinedRoomsListProps) {
   const router = useRouter();
@@ -73,15 +71,6 @@ export function JoinedRoomsList({
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          className="size-8"
-                          onClick={() => onCopyCode(room.roomCode)}
-                          title="Copy code"
-                        >
-                          <Copy className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
                           className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => handleLeaveClick(room)}
                           title="Leave room"
@@ -109,8 +98,8 @@ export function JoinedRoomsList({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={handleConfirmLeave}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Leave
             </AlertDialogAction>

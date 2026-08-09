@@ -14,7 +14,6 @@ import {
 import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomAccess, requireRoomOwner } from "@/server/rooms/auth";
 import { createRoomEvent } from "@/server/rooms/events";
-import { removeObject, removeObjectsWithPrefix } from "@/server/r2/files";
 import { createRoomCode } from "@/lib/utils/room";
 import {
   createRoomSchema,
@@ -22,12 +21,24 @@ import {
   updateTextSchema,
   renameFileSchema,
   renameFolderSchema,
+  createUploadSchema,
+  completeUploadSchema,
   type CreateRoomInput,
   type JoinRoomInput,
   type UpdateTextInput,
   type RenameFileInput,
   type RenameFolderInput,
+  type CreateUploadInput,
+  type CompleteUploadInput,
 } from "@/lib/validators";
+import {
+  createSignedUploadUrl,
+  createSignedDownloadUrl,
+  getObjectMetadata,
+  removeObject,
+  removeObjectsWithPrefix,
+} from "@/server/r2/files";
+import { env } from "@/lib/env";
 
 export async function createRoomAction(input: CreateRoomInput) {
   const session = await requireRequestSession();
@@ -354,4 +365,109 @@ export async function deleteFolderAction(uploadId: string) {
   await createRoomEvent(upload.roomId, "folder.deleted", { uploadId });
 
   return { success: true };
+}
+
+export async function createUploadUrlAction(
+  roomId: string,
+  input: CreateUploadInput
+) {
+  const session = await requireRequestSession();
+  await requireRoomAccess(roomId, session.user.id);
+  const validatedInput = createUploadSchema.parse(input);
+
+  const objectKey = validatedInput.uploadId
+    ? `${roomId}/${validatedInput.uploadId}/${validatedInput.fileName}`
+    : `${roomId}/${crypto.randomUUID()}-${validatedInput.fileName}`;
+
+  const uploadUrl = await createSignedUploadUrl(
+    objectKey,
+    validatedInput.contentType
+  );
+
+  return { objectKey, uploadUrl };
+}
+
+export async function completeUploadAction(
+  roomId: string,
+  input: CompleteUploadInput
+) {
+  const session = await requireRequestSession();
+  await requireRoomAccess(roomId, session.user.id);
+  const validatedInput = completeUploadSchema.parse(input);
+
+  const objectMetadata = await getObjectMetadata(validatedInput.objectKey);
+  if (objectMetadata.sizeBytes !== validatedInput.sizeBytes) {
+    throw new Error("Uploaded object could not be verified.");
+  }
+
+  if (validatedInput.uploadId) {
+    const [existingUpload] = await getDb()
+      .select()
+      .from(uploads)
+      .where(eq(uploads.id, validatedInput.uploadId))
+      .limit(1);
+
+    if (!existingUpload) {
+      await getDb().insert(uploads).values({
+        id: validatedInput.uploadId,
+        roomId,
+        uploaderId: session.user.id,
+        name: validatedInput.folderName || "Untitled Folder",
+      });
+    }
+  }
+
+  const [file] = await getDb()
+    .insert(uploadedFiles)
+    .values({
+      roomId,
+      uploaderId: session.user.id,
+      uploadId: validatedInput.uploadId || null,
+      objectKey: validatedInput.objectKey,
+      fileName: validatedInput.fileName,
+      contentType: objectMetadata.contentType ?? validatedInput.contentType,
+      sizeBytes: objectMetadata.sizeBytes,
+    })
+    .returning();
+
+  await createRoomEvent(roomId, "file.created", {
+    file: {
+      id: file.id,
+      fileName: file.fileName,
+      contentType: file.contentType,
+      sizeBytes: file.sizeBytes,
+      objectKey: file.objectKey,
+      uploadedAt: file.uploadedAt.toISOString(),
+      uploader: {
+        id: session.user.id,
+        name: session.user.name,
+      },
+      thumbnailUrl: file.contentType?.startsWith("image/")
+        ? `${env.r2PublicBaseUrl}/${file.objectKey}`
+        : null,
+      uploadId: file.uploadId,
+      uploadName: validatedInput.uploadId
+        ? validatedInput.folderName || "Untitled Folder"
+        : null,
+    },
+  });
+
+  return { fileId: file.id };
+}
+
+export async function getFileDownloadUrlAction(fileId: string) {
+  const session = await requireRequestSession();
+  const [file] = await getDb()
+    .select()
+    .from(uploadedFiles)
+    .where(eq(uploadedFiles.id, fileId))
+    .limit(1);
+
+  if (!file) {
+    throw new Error("File not found.");
+  }
+
+  await requireRoomAccess(file.roomId, session.user.id);
+  const url = await createSignedDownloadUrl(file.objectKey);
+  return { url };
 }

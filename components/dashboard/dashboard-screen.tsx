@@ -176,11 +176,6 @@ export function DashboardScreen({
     }
   }
 
-  const handleCopyCode = async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    toast.success("Room code copied to clipboard.");
-  };
-
   return (
     <div className="min-h-screen bg-background w-full">
       <div className="flex flex-col mx-auto max-w-3xl w-full py-8 px-5">
@@ -227,7 +222,6 @@ export function DashboardScreen({
           {/* Joined Rooms List */}
           <JoinedRoomsList
             rooms={joinedRooms}
-            onCopyCode={handleCopyCode}
             onLeave={handleLeaveRoom}
           />
         </div>

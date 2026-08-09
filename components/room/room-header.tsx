@@ -1,15 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Copy, DoorOpen } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, Trash2, DoorOpen } from "lucide-react";
 
 import type { RoomMember, RoomSnapshot } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/room/theme-toggle";
-import { UserMenu } from "@/components/room/user-menu";
+import { RoomCodeCopy } from "@/components/ui/room-code-copy";
 import { ElasticStack } from "@/components/ui/elastic-stack";
 import { getAvatarDataUri } from "@/lib/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function RoomHeader({
   room,
@@ -17,6 +27,7 @@ export function RoomHeader({
   currentUser,
   isOwner,
   onLeave,
+  onClearRoom,
   onlineUserIds = [],
 }: {
   room: RoomSnapshot["room"];
@@ -24,13 +35,9 @@ export function RoomHeader({
   currentUser: RoomMember;
   isOwner: boolean;
   onLeave: () => void;
+  onClearRoom: () => void;
   onlineUserIds?: string[];
 }) {
-  async function handleCopyCode() {
-    await navigator.clipboard.writeText(room.roomCode);
-    toast.success("Room code copied.");
-  }
-
   const stackItems = members.map((member) => ({
     id: member.id,
     name: member.name,
@@ -39,58 +46,87 @@ export function RoomHeader({
   }));
 
   return (
-    <header className="flex items-center justify-between border-b border-border pb-4">
-      {/* Left side: Room Details */}
-      <div className="flex items-center gap-3">
+    <header className="flex items-center justify-between gap-4 pb-4">
+      {/* Left side: Back button & Room Details */}
+      <div className="flex items-center gap-3 min-w-0">
         <Link
           href="/"
-          className="group flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          title="Back to Dashboard"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-foreground shrink-0 cursor-pointer"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Back to rooms</span>
+          <span className="sm:hidden">Back</span>
         </Link>
-        <div className="h-4 w-px bg-border" />
-        <h1 className="text-sm font-semibold tracking-tight text-foreground sm:text-base">
-          {room.name}
-        </h1>
-        <div className="h-4 w-px bg-border" />
-        <button
-          onClick={handleCopyCode}
-          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-mono text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="Click to copy room code"
-        >
-          <span>{room.roomCode}</span>
-          <Copy className="h-3 w-3 opacity-60 transition-opacity group-hover:opacity-100" />
-        </button>
+
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h1 className="text-sm font-semibold tracking-tight text-foreground sm:text-base truncate">
+            {room.name}
+          </h1>
+          <div className="shrink-0">
+            <RoomCodeCopy code={room.roomCode} />
+          </div>
+        </div>
       </div>
 
-      {/* Right side: Participants & Actions */}
-      <div className="flex items-center gap-4">
+      {/* Right side: Participants, Theme toggle & Clear/Leave room */}
+      <div className="flex items-center gap-3 shrink-0">
         {/* ElasticStack Participants */}
         <div className="flex items-center gap-2">
-          <ElasticStack items={stackItems} itemSize={26} overlap={6} pushForce={5} />
-          <span className="text-xs text-muted-foreground font-medium hidden sm:inline-block">
+          <ElasticStack items={stackItems} itemSize={24} overlap={6} pushForce={4} />
+          <span className="text-xs text-muted-foreground font-medium hidden md:inline-block">
             {members.length} {members.length === 1 ? "member" : "members"}
           </span>
         </div>
 
-        <div className="h-4 w-px bg-border hidden sm:block" />
+        <div className="h-3.5 w-px bg-border hidden sm:block" />
 
-        <div className="flex items-center gap-1.5">
-          <ThemeToggle />
-          <UserMenu user={currentUser} />
-          {!isOwner && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onLeave}
-              className="text-muted-foreground hover:text-destructive animate-none"
-              title="Leave Room"
+        <ThemeToggle />
+
+        {isOwner ? (
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5 font-medium transition-colors cursor-pointer"
+                  title="Clear room"
+                />
+              }
             >
-              <DoorOpen className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Clear room</span>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="rounded-xl max-w-sm">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-sm font-semibold">Clear this room?</AlertDialogTitle>
+                <AlertDialogDescription className="text-xs text-muted-foreground">
+                  This permanently deletes all uploaded files and clears the shared text for everyone in this room.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="mt-4 gap-1.5">
+                <AlertDialogCancel className="h-8 text-xs">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onClearRoom}
+                  className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Clear room
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={onLeave}
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5 font-medium transition-colors cursor-pointer"
+            title="Leave room"
+          >
+            <DoorOpen className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Leave room</span>
+          </Button>
+        )}
       </div>
     </header>
   );

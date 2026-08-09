@@ -2,29 +2,20 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
-import { leaveRoomAction, clearRoomAction, saveTextAction } from "@/server/rooms/actions";
+import {
+  leaveRoomAction,
+  clearRoomAction,
+  saveTextAction,
+} from "@/server/rooms/actions";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { useRoomEvents } from "@/hooks/use-room-events";
 import type { RoomEvent, RoomMember, RoomSnapshot } from "@/types/rooms";
 import { FilesPanel } from "@/components/room/files-panel";
 import { QuickTextPanel } from "@/components/room/quick-text-panel";
 import { RoomHeader } from "@/components/room/room-header";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 
 export function RoomDashboard({
   initialSnapshot,
@@ -214,77 +205,58 @@ export function RoomDashboard({
           currentUser={currentUser}
           isOwner={isOwner}
           onLeave={handleLeaveRoom}
+          onClearRoom={handleClearSession}
           onlineUserIds={onlineUserIds}
         />
 
-        <div className="flex flex-col flex-1 mt-6">
-          {/* Tab Navigation Segmented Bar */}
-          <div className="flex items-center justify-between border-b border-border pb-px">
-            <div className="flex gap-5 relative">
-              <button
-                onClick={() => setActiveTab("text")}
-                className={`pb-2.5 text-xs font-semibold tracking-wider uppercase transition-colors relative cursor-pointer ${
-                  activeTab === "text" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Text
-                {activeTab === "text" && (
-                  <motion.div
-                    layoutId="activeTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab("files")}
-                className={`pb-2.5 text-xs font-semibold tracking-wider uppercase transition-colors relative cursor-pointer ${
-                  activeTab === "files" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Files
-                {activeTab === "files" && (
-                  <motion.div
-                    layoutId="activeTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-              </button>
-            </div>
-
-            {/* Clear Room button */}
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button variant="ghost" size="xs" className="text-muted-foreground hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 gap-1.5" />}>
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Clear room
-              </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-lg max-w-sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-sm font-semibold">Clear this room?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-xs text-muted-foreground">
-                    This removes all files and shared text for everyone currently connected.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="mt-4 gap-1.5">
-                  <AlertDialogCancel className="h-8 text-xs">Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearSession} className="h-8 text-xs bg-destructive text-white hover:bg-destructive/90">
-                    Clear room
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+        <div className="flex flex-col flex-1 mt-4">
+          {/* Clean Tab Navigation without heavy dividers */}
+          <div className="flex items-center gap-6 pb-3">
+            <button
+              onClick={() => setActiveTab("text")}
+              className={`text-xs font-semibold tracking-wider uppercase transition-colors relative pb-1.5 cursor-pointer ${
+                activeTab === "text"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Text
+              {activeTab === "text" && (
+                <motion.div
+                  layoutId="activeTabUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("files")}
+              className={`text-xs font-semibold tracking-wider uppercase transition-colors relative pb-1.5 cursor-pointer ${
+                activeTab === "files"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Files
+              {activeTab === "files" && (
+                <motion.div
+                  layoutId="activeTabUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
           </div>
 
-          {/* Smooth animated panel display */}
-          <div className="flex-1 flex flex-col justify-stretch py-2 min-h-0">
+          {/* Panel display */}
+          <div className="flex-1 flex flex-col justify-stretch pt-2 min-h-0">
             <AnimatePresence mode="wait">
               {activeTab === "text" ? (
                 <motion.div
                   key="text-tab"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
+                  exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.15, ease: "easeInOut" }}
                   className="flex-1 flex flex-col"
                 >
@@ -298,9 +270,9 @@ export function RoomDashboard({
               ) : (
                 <motion.div
                   key="files-tab"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
+                  exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.15, ease: "easeInOut" }}
                   className="flex-1 flex flex-col"
                 >
@@ -336,7 +308,6 @@ export function RoomDashboard({
                       }))
                     }
                   />
-
                 </motion.div>
               )}
             </AnimatePresence>

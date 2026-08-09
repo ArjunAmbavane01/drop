@@ -9,16 +9,18 @@ import {
   Trash2,
   Upload,
   File,
-  ChevronRight,
   Folder,
   X,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
-import { fetchJson } from "@/lib/fetcher";
 import {
+  createUploadUrlAction,
+  completeUploadAction,
+  getFileDownloadUrlAction,
   renameFileAction,
   renameFolderAction,
   deleteFileAction,
@@ -40,15 +42,13 @@ import {
   SubFiles as AnimateSubFiles,
 } from "@/components/animate-ui/components/radix/files";
 
-type UploadSignerResponse = { objectKey: string; uploadUrl: string };
-
 type UploadGroup = {
-  id: string; // uploadId for folders, random ID for files
-  name: string; // folder name or file name
+  id: string;
+  name: string;
   type: "file" | "folder";
   files: {
     file: File;
-    relativePath: string; // relative path within folder or simple name
+    relativePath: string;
   }[];
 };
 
@@ -65,7 +65,6 @@ type UploadState = {
   group: UploadGroup;
 };
 
-// Tree node definition for folders
 interface TreeNode {
   name: string;
   relativePath: string;
@@ -74,7 +73,6 @@ interface TreeNode {
   children: Record<string, TreeNode>;
 }
 
-// Group files and folders for flat list
 type FolderItem = {
   type: "folder";
   uploadId: string;
@@ -189,7 +187,6 @@ export function FilesPanel({
 
   const [isDragging, setIsDragging] = useState(false);
   const [uploads, setUploads] = useState<UploadState[]>([]);
-  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
@@ -212,13 +209,6 @@ export function FilesPanel({
     input.setAttribute("webkitdirectory", "");
     input.setAttribute("directory", "");
   }, []);
-
-  function togglePath(path: string) {
-    setExpandedPaths((prev) => ({
-      ...prev,
-      [path]: !prev[path],
-    }));
-  }
 
   function getFilePath(file: File) {
     const relativePath = "webkitRelativePath" in file ? (file.webkitRelativePath as string) : "";
@@ -272,7 +262,7 @@ export function FilesPanel({
 
     const uploadGroups = groupFilesForUpload(validFiles);
 
-    // Run all group uploads
+    // Run all group uploads concurrently
     await Promise.all(uploadGroups.map(group => executeGroupUpload(group)));
   }
 
@@ -280,7 +270,6 @@ export function FilesPanel({
     const totalBytes = group.files.reduce((sum, f) => sum + f.file.size, 0);
     const activeRequests: XMLHttpRequest[] = [];
 
-    // Add or reset the queue item
     setUploads((prev) => {
       const existing = prev.find((u) => u.id === group.id);
       if (existing) {
@@ -321,19 +310,15 @@ export function FilesPanel({
         group.files.map(async (fileInfo) => {
           const { file, relativePath } = fileInfo;
 
-          // 1. Get pre-signed URL from API
-          const signed = await fetchJson<UploadSignerResponse>(`/api/rooms/${roomId}/uploads`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileName: relativePath,
-              contentType: file.type || "application/octet-stream",
-              sizeBytes: file.size,
-              uploadId: group.type === "folder" ? group.id : undefined,
-            }),
+          // 1. Get pre-signed URL via Server Action
+          const signed = await createUploadUrlAction(roomId, {
+            fileName: relativePath,
+            contentType: file.type || "application/octet-stream",
+            sizeBytes: file.size,
+            uploadId: group.type === "folder" ? group.id : undefined,
           });
 
-          // 2. Upload file to R2 with XMLHttpRequest progress reporting
+          // 2. Direct upload to R2 with XMLHttpRequest progress reporting
           await new Promise<void>((resolve, reject) => {
             const request = new XMLHttpRequest();
             activeRequests.push(request);
@@ -363,33 +348,30 @@ export function FilesPanel({
                 fileProgresses.set(relativePath, file.size);
                 resolve();
               } else {
-                reject(new Error("Upload failed."));
+                reject(new Error(`Upload failed with status ${request.status}`));
               }
             });
 
-            request.addEventListener("error", () => reject(new Error("Upload failed.")));
+            request.addEventListener("error", () => reject(new Error("Network error during upload.")));
+            request.addEventListener("abort", () => reject(new Error("Upload cancelled.")));
             request.open("PUT", signed.uploadUrl);
             request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
             request.send(file);
           });
 
-          // 3. Complete the upload
-          await fetchJson(`/api/rooms/${roomId}/uploads`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              objectKey: signed.objectKey,
-              fileName: relativePath,
-              contentType: file.type || "application/octet-stream",
-              sizeBytes: file.size,
-              uploadId: group.type === "folder" ? group.id : undefined,
-              folderName: group.type === "folder" ? group.name : undefined,
-            }),
+          // 3. Complete the upload via Server Action
+          await completeUploadAction(roomId, {
+            objectKey: signed.objectKey,
+            fileName: relativePath,
+            contentType: file.type || "application/octet-stream",
+            sizeBytes: file.size,
+            uploadId: group.type === "folder" ? group.id : undefined,
+            folderName: group.type === "folder" ? group.name : undefined,
           });
         })
       );
 
-      // Mark upload group as complete
+      // Mark upload as complete
       setUploads((prev) =>
         prev.map((u) =>
           u.id === group.id
@@ -398,19 +380,20 @@ export function FilesPanel({
         ),
       );
 
-      // Auto-hide the successful item after a brief delay
+      // Auto-hide completed item
       setTimeout(() => {
         setUploads((prev) => prev.filter((u) => u.id !== group.id));
       }, 700);
 
     } catch (error) {
       const wasAborted = activeRequests.some(xhr => xhr.readyState === 0 || xhr.status === 0);
-      if (wasAborted) return; // Silent cleanup if user cancelled
+      if (wasAborted) return;
 
+      const errorMessage = error instanceof Error ? error.message : "Upload failed";
       setUploads((prev) =>
         prev.map((u) =>
           u.id === group.id
-            ? { ...u, status: "error", error: error instanceof Error ? error.message : "Upload failed" }
+            ? { ...u, status: "error", error: errorMessage }
             : u,
         ),
       );
@@ -457,8 +440,8 @@ export function FilesPanel({
 
   async function handleDownload(fileId: string) {
     try {
-      const data = await fetchJson<{ url: string }>(`/api/files/${fileId}/download`);
-      window.open(data.url, "_blank", "noopener,noreferrer");
+      const { url } = await getFileDownloadUrlAction(fileId);
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to download file.");
     }
@@ -539,9 +522,9 @@ export function FilesPanel({
         onChange={handlePickerChange}
       />
 
-      {/* Modern SaaS Upload Dropzone */}
+      {/* Clean Drag & Drop Upload Zone */}
       <motion.div
-        className="relative flex flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary"
+        className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 p-6 sm:p-7 text-center cursor-pointer transition-colors hover:border-foreground/30 bg-card/20 dark:bg-card/10"
         onClick={() => fileInputRef.current?.click()}
         onDragEnter={(event) => {
           event.preventDefault();
@@ -559,36 +542,40 @@ export function FilesPanel({
         }}
         onDrop={handleDrop}
         animate={{
-          borderColor: isDragging ? "var(--primary)" : "rgba(115, 115, 115, 0.3)",
-          backgroundColor: isDragging ? "var(--accent)" : "rgba(0, 0, 0, 0)",
+          borderColor: isDragging ? "var(--primary)" : undefined,
+          backgroundColor: isDragging ? "var(--accent)" : undefined,
         }}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
-        whileHover={{ scale: 0.995 }}
       >
-        <motion.div
-          animate={{ y: isDragging ? -4 : 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground mb-3"
-        >
-          <Upload className="h-5 w-5" />
-        </motion.div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground mb-2.5">
+          <Upload className="h-4 w-4" />
+        </div>
         
-        <p className="text-sm font-medium text-foreground">
+        <p className="text-xs sm:text-sm font-medium text-foreground">
           Drag & drop your files here, or{" "}
           <span className="text-primary hover:underline font-semibold">browse</span>
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
           Supports multiple files or directories
         </p>
 
-        <div className="mt-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Button variant="secondary" size="xs" onClick={() => fileInputRef.current?.click()}>
+        <div className="mt-3.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={() => fileInputRef.current?.click()}
+            className="gap-1.5 text-xs font-medium cursor-pointer"
+          >
             <Upload className="h-3.5 w-3.5" />
-            Files
+            Upload files
           </Button>
-          <Button variant="secondary" size="xs" onClick={() => folderInputRef.current?.click()}>
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={() => folderInputRef.current?.click()}
+            className="gap-1.5 text-xs font-medium cursor-pointer"
+          >
             <FolderUp className="h-3.5 w-3.5" />
-            Folder
+            Upload folder
           </Button>
         </div>
       </motion.div>
@@ -605,11 +592,11 @@ export function FilesPanel({
                 <motion.div
                   key={upload.id}
                   layout
-                  initial={{ opacity: 0, y: 5 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ duration: 0.2 }}
-                  className="rounded-lg border border-border bg-card px-3 py-2 text-xs"
+                  className="rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2.5 text-xs"
                 >
                   <div className="flex items-center justify-between gap-3 mb-1.5">
                     <p className="truncate font-medium text-foreground flex-1">{upload.name}</p>
@@ -624,25 +611,25 @@ export function FilesPanel({
                       {upload.status === "error" && (
                         <button
                           onClick={() => handleRetryUpload(upload.id)}
-                          className="text-blue-500 hover:text-blue-600 transition-colors p-0.5 rounded"
+                          className="text-primary hover:opacity-80 transition-opacity p-0.5 rounded cursor-pointer"
                           title="Retry"
                         >
-                          <RefreshCw className="h-3 w-3" />
+                          <RefreshCw className="h-3.5 w-3.5" />
                         </button>
                       )}
                       <button
                         onClick={() => cancelUpload(upload.id)}
-                        className="text-muted-foreground/60 hover:text-foreground transition-colors p-0.5 rounded"
+                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded cursor-pointer"
                         title="Cancel"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
                   {upload.status === "error" ? (
-                    <p className="text-[10px] text-destructive truncate">{upload.error}</p>
+                    <p className="text-[11px] text-destructive truncate">{upload.error}</p>
                   ) : (
-                    <Progress value={upload.progress} className="h-1 bg-muted [&>div]:bg-primary transition-all duration-200" />
+                    <Progress value={upload.progress} className="h-1 bg-muted transition-all duration-200" />
                   )}
                 </motion.div>
               ))}
@@ -656,15 +643,15 @@ export function FilesPanel({
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 select-none">
           Recent uploads
         </h3>
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+        <div className="flex-1 overflow-y-auto space-y-1">
           {groupedItems.length === 0 ? (
-            <div className="rounded-xl border border-border border-dashed py-12 text-center flex flex-col items-center justify-center">
-              <File className="h-8 w-8 text-muted-foreground/40 mb-2" />
+            <div className="rounded-xl border border-border/50 border-dashed py-12 text-center flex flex-col items-center justify-center">
+              <File className="h-7 w-7 text-muted-foreground/30 mb-2" />
               <p className="text-xs font-medium text-muted-foreground">No files in this room yet</p>
-              <p className="text-[11px] text-muted-foreground/60 mt-1">Uploaded files appear here for everyone</p>
+              <p className="text-[11px] text-muted-foreground/50 mt-0.5">Uploaded files appear here for everyone</p>
             </div>
           ) : (
-            <Files className="w-full p-0 bg-transparent space-y-2 border-none">
+            <Files className="w-full p-0 bg-transparent space-y-1 border-none">
               {groupedItems.map((item) => {
                 if (item.type === "file") {
                   const { file } = item;
@@ -675,9 +662,9 @@ export function FilesPanel({
                     <Image
                       src={file.thumbnailUrl!}
                       alt={file.fileName}
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 rounded object-cover border border-border"
+                      width={32}
+                      height={32}
+                      className="h-8 w-8 rounded object-cover border border-border/60"
                     />
                   );
 
@@ -685,26 +672,32 @@ export function FilesPanel({
                     <AnimateFileItem
                       key={file.id}
                       icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
-                      className="group border border-border/40 rounded-xl p-3 hover:border-neutral-300 dark:hover:border-neutral-800 transition-colors pointer-events-auto bg-card"
+                      className="group rounded-lg p-2.5 hover:bg-muted/50 dark:hover:bg-muted/25 transition-colors pointer-events-auto border-none bg-transparent"
                     >
                       <div className="flex items-center justify-between w-full pointer-events-auto">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-medium text-foreground leading-none">{file.fileName}</p>
-                            <p className="mt-1.5 text-[11px] text-muted-foreground leading-none">
+                            <p className="truncate text-xs font-medium text-foreground leading-snug">{file.fileName}</p>
+                            <p className="text-[11px] text-muted-foreground leading-normal">
                               {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
                             </p>
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-1 shrink-0 pointer-events-auto">
-                          <Button variant="ghost" size="icon-xs" className="cursor-pointer" onClick={() => handleDownload(file.id)} title="Download file">
+                        <div className="flex items-center gap-0.5 shrink-0 pointer-events-auto">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="cursor-pointer text-muted-foreground hover:text-foreground"
+                            onClick={() => handleDownload(file.id)}
+                            title="Download file"
+                          >
                             <Download className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon-xs"
-                            className="cursor-pointer"
+                            className="cursor-pointer text-muted-foreground hover:text-foreground"
                             onClick={() => {
                               setRenameTarget(file);
                               setRenameValue(file.fileName);
@@ -716,7 +709,7 @@ export function FilesPanel({
                           <Button
                             variant="ghost"
                             size="icon-xs"
-                            className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 cursor-pointer"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                             onClick={() => handleDelete(file.id)}
                             title="Delete file"
                           >
@@ -734,25 +727,31 @@ export function FilesPanel({
                     <AnimateFolderItem
                       key={folder.uploadId}
                       value={folder.uploadId}
-                      className="border border-border/40 rounded-xl bg-card transition-colors hover:border-neutral-300 dark:hover:border-neutral-800"
+                      className="rounded-lg bg-transparent border-none transition-colors"
                     >
-                      <AnimateFolderTrigger className="p-3 w-full cursor-pointer pointer-events-auto">
+                      <AnimateFolderTrigger className="p-2.5 w-full cursor-pointer pointer-events-auto hover:bg-muted/50 dark:hover:bg-muted/25 rounded-lg">
                         <div className="flex items-center justify-between w-full pointer-events-auto">
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-foreground leading-none">{folder.name}</p>
-                            <p className="mt-1.5 text-[11px] text-muted-foreground leading-none">
+                            <p className="truncate text-xs font-semibold text-foreground leading-snug">{folder.name}</p>
+                            <p className="text-[11px] text-muted-foreground leading-normal">
                               {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon-xs" className="cursor-pointer" onClick={() => handleDownloadFolder(folder.uploadId)} title="Download folder (ZIP)">
+                          <div className="flex items-center gap-0.5 shrink-0 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="cursor-pointer text-muted-foreground hover:text-foreground"
+                              onClick={() => handleDownloadFolder(folder.uploadId)}
+                              title="Download folder (ZIP)"
+                            >
                               <Download className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon-xs"
-                              className="cursor-pointer"
+                              className="cursor-pointer text-muted-foreground hover:text-foreground"
                               onClick={() => {
                                 setRenameFolderTarget(folder);
                                 setRenameFolderValue(folder.name);
@@ -764,7 +763,7 @@ export function FilesPanel({
                             <Button
                               variant="ghost"
                               size="icon-xs"
-                              className="hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 cursor-pointer"
+                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                               onClick={() => handleDeleteFolder(folder.uploadId)}
                               title="Delete folder"
                             >
@@ -773,7 +772,7 @@ export function FilesPanel({
                           </div>
                         </div>
                       </AnimateFolderTrigger>
-                      <AnimateFolderContent className="bg-muted/10 dark:bg-muted/5 py-2 px-1 border-t border-border/20 rounded-b-xl">
+                      <AnimateFolderContent className="bg-transparent py-1 px-1 pl-4 border-l border-border/50 ml-3">
                         <FolderTree
                           nodes={tree}
                           uploadId={folder.uploadId}
@@ -796,7 +795,7 @@ export function FilesPanel({
 
       {/* File Rename Dialog */}
       <Dialog open={Boolean(renameTarget)} onOpenChange={(open) => !open && setRenameTarget(null)}>
-        <DialogContent className="rounded-lg max-w-sm">
+        <DialogContent className="rounded-xl max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold">Rename file</DialogTitle>
           </DialogHeader>
@@ -818,7 +817,7 @@ export function FilesPanel({
 
       {/* Folder Rename Dialog */}
       <Dialog open={Boolean(renameFolderTarget)} onOpenChange={(open) => !open && setRenameFolderTarget(null)}>
-        <DialogContent className="rounded-lg max-w-sm">
+        <DialogContent className="rounded-xl max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold">Rename folder</DialogTitle>
           </DialogHeader>
@@ -874,10 +873,10 @@ function FolderTree({
         if (isDir) {
           return (
             <AnimateFolderItem key={pathKey} value={pathKey} className="border-none bg-transparent">
-              <AnimateFolderTrigger className="p-2 w-full cursor-pointer hover:bg-muted/40 rounded-lg">
-                <span className="text-xs font-semibold text-foreground/80">{node.name}</span>
+              <AnimateFolderTrigger className="p-1.5 w-full cursor-pointer hover:bg-muted/40 rounded-md">
+                <span className="text-xs font-medium text-foreground/80">{node.name}</span>
               </AnimateFolderTrigger>
-              <AnimateFolderContent className="bg-transparent pl-4 border-l border-border/60 ml-3 py-1">
+              <AnimateFolderContent className="bg-transparent pl-3 border-l border-border/40 ml-2 py-0.5">
                 <FolderTree
                   nodes={node.children}
                   uploadId={uploadId}
@@ -897,9 +896,9 @@ function FolderTree({
             <Image
               src={file.thumbnailUrl!}
               alt={file.fileName}
-              width={18}
-              height={18}
-              className="h-4.5 w-4.5 rounded object-cover border border-border"
+              width={16}
+              height={16}
+              className="h-4 w-4 rounded object-cover border border-border/60"
             />
           );
 
@@ -907,12 +906,12 @@ function FolderTree({
             <AnimateFileItem
               key={file.id}
               icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
-              className="group p-2 cursor-default hover:bg-muted/40 rounded-lg"
+              className="group p-1.5 cursor-default hover:bg-muted/40 rounded-md border-none bg-transparent"
             >
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="truncate leading-none text-xs font-medium text-foreground">{node.name}</span>
-                  <span className="text-[10px] text-muted-foreground/50 shrink-0 font-normal">
+                  <span className="text-[10px] text-muted-foreground/60 shrink-0 font-normal">
                     ({formatFileSize(file.sizeBytes)})
                   </span>
                 </div>
@@ -921,7 +920,7 @@ function FolderTree({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="h-5 w-5 [&_svg]:size-3 cursor-pointer"
+                    className="h-5 w-5 [&_svg]:size-3 cursor-pointer text-muted-foreground hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onFileDownload(file.id);
@@ -933,7 +932,7 @@ function FolderTree({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="h-5 w-5 [&_svg]:size-3 cursor-pointer"
+                    className="h-5 w-5 [&_svg]:size-3 cursor-pointer text-muted-foreground hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onFileRename(file);
@@ -945,7 +944,7 @@ function FolderTree({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="h-5 w-5 hover:text-destructive hover:bg-destructive/5 dark:hover:bg-destructive/10 [&_svg]:size-3 cursor-pointer"
+                    className="h-5 w-5 hover:text-destructive hover:bg-destructive/10 [&_svg]:size-3 cursor-pointer text-muted-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onFileDelete(file.id);
