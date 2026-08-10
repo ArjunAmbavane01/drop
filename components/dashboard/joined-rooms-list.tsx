@@ -50,11 +50,7 @@ export function JoinedRoomsList({
         title="Joined Rooms"
         count={rooms.length}
         groupId="joined-rooms-list"
-        emptyState={
-          <p className="text-sm text-muted-foreground p-3 italic">
-            You haven&apos;t joined any rooms yet.
-          </p>
-        }
+        emptyState="Join a room to access files shared with you."
       >
         {rooms.length > 0
           ? rooms.map((room) => {
@@ -69,13 +65,13 @@ export function JoinedRoomsList({
                     !isPending && (
                       <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
                         <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          variant="destructive"
+                          size="icon"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => handleLeaveClick(room)}
                           title="Leave room"
                         >
-                          <LogOut className="size-4" />
+                          <LogOut />
                         </Button>
                       </div>
                     )
@@ -91,7 +87,7 @@ export function JoinedRoomsList({
           <AlertDialogHeader>
             <AlertDialogTitle>Leave room</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to leave <strong>{roomToLeave?.name}</strong>? You can rejoin later with the room code.
+              Are you sure you want to leave <span className="font-semibold text-foreground">{" " + roomToLeave?.name + " "}</span>? You can rejoin later with the room code.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

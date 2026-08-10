@@ -90,7 +90,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
               <div>
                 <AnimatedInput
                   {...field}
-                  icon={<User className="size-4 text-gray-400" />}
+                  icon={<User className="size-4" />}
                   label="Name"
                   placeholder="Arjun Patel"
                 />
@@ -112,7 +112,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
               <AnimatedInput
                 {...field}
                 type="email"
-                icon={<Mail className="size-4 text-gray-400" />}
+                icon={<Mail className="size-4" />}
                 label="Email"
                 placeholder="you@example.com"
               />
@@ -133,7 +133,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
               <AnimatedInput
                 {...field}
                 type="password"
-                icon={<Lock className="size-4 text-gray-400" />}
+                icon={<Lock className="size-4" />}
                 label="Password"
                 placeholder="Enter your password"
               />

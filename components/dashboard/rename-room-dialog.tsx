@@ -53,20 +53,14 @@ export function RenameRoomDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-2xl">
+      <DialogContent>
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">
+            <DialogTitle>
               Rename room
             </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Enter a new name for your room.
-            </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-2">
-            <Label htmlFor="rename-name" className="text-xs">
-              Room Name
-            </Label>
             <Controller
               name="roomName"
               control={control}
@@ -75,8 +69,7 @@ export function RenameRoomDialog({
                   <Input
                     {...field}
                     id="rename-name"
-                    placeholder="e.g. My Laptop Sync"
-                    className="h-10 rounded-xl"
+                    placeholder="Enter a new name for your room."
                     disabled={isRenaming}
                   />
                   {fieldState.invalid && (
@@ -86,11 +79,10 @@ export function RenameRoomDialog({
               )}
             />
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button
               type="button"
               variant="ghost"
-              className="h-9 text-xs"
               onClick={() => {
                 onOpenChange(false);
                 reset();
@@ -98,7 +90,7 @@ export function RenameRoomDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" className="h-9 text-xs" disabled={isRenaming}>
+            <Button type="submit" disabled={isRenaming}>
               {isRenaming ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

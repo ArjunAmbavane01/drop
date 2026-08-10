@@ -141,7 +141,7 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
         )}
         <motion.label
           animate={getLabelAnimation()}
-          className={`pointer-events-none absolute top-1/2 left-3 origin-left -translate-y-1/2 rounded-lg border border-transparent bg-background px-1 text-foreground transition-all ${labelClassName}`}
+          className={`pointer-events-none absolute top-1/2 left-3 origin-left -translate-y-1/2 rounded border border-transparent bg-background px-1 text-foreground transition-all ${labelClassName}`}
           htmlFor={inputId}
           style={{
             zIndex: 2,

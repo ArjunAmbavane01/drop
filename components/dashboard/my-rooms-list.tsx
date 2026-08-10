@@ -53,11 +53,7 @@ export function MyRoomsList({
         title="My Rooms"
         count={rooms.length}
         groupId="my-rooms-list"
-        emptyState={
-          <p className="text-sm text-muted-foreground p-3 italic">
-            You haven&apos;t created any rooms yet.
-          </p>
-        }
+        emptyState="Create your first room to start sharing files across devices."
       >
         {rooms.length > 0
           ? rooms.map((room) => {
@@ -80,21 +76,20 @@ export function MyRoomsList({
                   <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
                     <Button
                       variant="ghost"
-                      size="icon-sm"
-                      className="size-8"
+                      size="icon"
                       onClick={() => onRename(room)}
                       title="Rename"
                     >
-                      <Edit2 className="size-4" />
+                      <Edit2 />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
-                      className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      size="icon"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => handleDeleteClick(room)}
                       title="Delete"
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2 />
                     </Button>
                   </div>
                 }
@@ -109,7 +104,7 @@ export function MyRoomsList({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete room</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{roomToDelete?.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete <span className="font-semibold text-foreground">{" " + roomToDelete?.name + " "}</span>? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

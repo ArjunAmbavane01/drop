@@ -7,7 +7,7 @@ interface RoomRowListProps {
   title: string;
   count?: number;
   children: ReactNode;
-  emptyState?: ReactNode;
+  emptyState?: string;
   groupId: string;
 }
 
@@ -26,11 +26,9 @@ export function RoomRowList({
       </h3>
 
       {!children ? (
-        emptyState || (
-          <p className="text-sm text-muted-foreground py-2 italic px-3">
-            No rooms yet.
-          </p>
-        )
+        <p className="text-sm text-muted-foreground p-3 italic">
+          {emptyState || "No rooms yet."}
+        </p>
       ) : (
         <LayoutGroup id={groupId}>
           <motion.div layout className="space-y-0">

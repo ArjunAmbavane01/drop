@@ -108,74 +108,75 @@ export function DashboardActions({
         {/* Create Room Dialog */}
         <TooltipProvider>
           <Tooltip open={isRoomsFull ? undefined : false}>
-            <TooltipTrigger>
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger>
-                  <Button disabled={isRoomsFull} className="w-full sm:w-auto">
-                    <Plus className="size-4" />
-                    Create Room
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md rounded-xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-semibold">
-                      Create a new room
-                    </DialogTitle>
-                    <DialogDescription className="text-sm text-muted-foreground">
-                      Rooms let you instantly sync text and files.
-                    </DialogDescription>
-                  </DialogHeader>
+            <TooltipTrigger
+              render={
+                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                  <DialogTrigger render={
+                    <Button disabled={isRoomsFull} className="w-full sm:w-auto">
+                      <Plus className="size-4" />
+                      Create Room
+                    </Button>
+                  } />
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>
+                        Create a new room
+                      </DialogTitle>
+                      <DialogDescription>
+                        Rooms let you instantly sync text and files.
+                      </DialogDescription>
+                    </DialogHeader>
 
-                  <form
-                    onSubmit={createForm.handleSubmit((data) => handleCreateRoom(data))}
-                    className="space-y-4"
-                  >
-                    <Controller
-                      name="roomName"
-                      control={createForm.control}
-                      render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                          <Input
-                            {...field}
-                            id="create-room-name"
-                            placeholder="Enter room name"
-                            aria-invalid={fieldState.invalid}
-                            aria-label="Room Name"
-                            disabled={isCreating}
-                          />
-                          {fieldState.invalid && (
-                            <FieldError errors={[fieldState.error]} />
-                          )}
-                        </Field>
-                      )}
-                    />
+                    <form
+                      onSubmit={createForm.handleSubmit((data) => handleCreateRoom(data))}
+                      className="space-y-4"
+                    >
+                      <Controller
+                        name="roomName"
+                        control={createForm.control}
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <Input
+                              {...field}
+                              id="create-room-name"
+                              placeholder="Enter room name"
+                              aria-invalid={fieldState.invalid}
+                              aria-label="Room Name"
+                              disabled={isCreating}
+                            />
+                            {fieldState.invalid && (
+                              <FieldError errors={[fieldState.error]} />
+                            )}
+                          </Field>
+                        )}
+                      />
 
-                    <DialogFooter className="gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          setCreateOpen(false);
-                          createForm.reset();
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        disabled={isCreating}
-                      >
-                        {isCreating ? "Creating..." : "Create"}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </TooltipTrigger>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            setCreateOpen(false);
+                            createForm.reset();
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={isCreating}
+                        >
+                          {isCreating ? "Creating..." : "Create"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              } />
             {isRoomsFull && (
               <TooltipContent
                 side="bottom"
-                className="max-w-xs bg-destructive text-destructive-foreground border-destructive flex items-center gap-2"
+                className="bg-destructive text-destructive-foreground border-destructive"
                 arrowClassName="bg-destructive fill-destructive"
               >
                 <AlertCircle className="size-4 shrink-0" />
@@ -190,18 +191,18 @@ export function DashboardActions({
 
         {/* Join Room Dialog */}
         <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
-          <DialogTrigger>
+          <DialogTrigger render={
             <Button variant="secondary" className="w-full sm:w-auto">
               <Key className="size-4" />
               Join Room
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md rounded-xl">
+          } />
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle className="text-lg font-semibold">
+              <DialogTitle>
                 Join a room
               </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
+              <DialogDescription>
                 Enter the 8-character room code from your other device or teammate.
               </DialogDescription>
             </DialogHeader>
@@ -235,7 +236,7 @@ export function DashboardActions({
                 )}
               />
 
-              <DialogFooter className="gap-2">
+              <DialogFooter>
                 <Button
                   type="button"
                   variant="ghost"
@@ -257,6 +258,6 @@ export function DashboardActions({
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+    </div >
   );
 }
