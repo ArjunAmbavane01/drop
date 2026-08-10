@@ -40,6 +40,7 @@ export function RoomHeader({
   onLeave,
   onClearRoom,
   onlineUserIds = [],
+  currentUserId,
 }: {
   room: RoomSnapshot["room"];
   members: RoomMember[];
@@ -47,6 +48,7 @@ export function RoomHeader({
   onLeave: () => void;
   onClearRoom: () => void;
   onlineUserIds?: string[];
+  currentUserId?: string;
 }) {
   const router = useRouter();
 
@@ -85,6 +87,8 @@ export function RoomHeader({
             {members.map((member) => {
               const isOnline = onlineUserIds.includes(member.id);
               const avatarSrc = getAvatarDataUri(member.id);
+              const isCurrentUser = member.id === currentUserId;
+              const displayName = isCurrentUser ? "You" : member.name;
 
               return (
                 <Tooltip key={member.id}>
@@ -97,8 +101,8 @@ export function RoomHeader({
                             isOnline ? "opacity-100" : "grayscale opacity-60"
                           )}
                         >
-                          <AvatarImage src={avatarSrc} alt={member.name} className="rounded-full" />
-                          <AvatarFallback className="rounded-full text-xs font-medium">
+                          <AvatarImage src={avatarSrc} alt={member.name} className="rounded-full bg-background" />
+                          <AvatarFallback className="rounded-full text-xs font-medium bg-background">
                             {member.name ? member.name.charAt(0).toUpperCase() : "?"}
                           </AvatarFallback>
                         </Avatar>
@@ -106,7 +110,7 @@ export function RoomHeader({
                     }
                   />
                   <TooltipContent side="top" className="text-xs">
-                    {member.name} {isOnline ? "(Online)" : "(Offline)"}
+                    {displayName}
                   </TooltipContent>
                 </Tooltip>
               );

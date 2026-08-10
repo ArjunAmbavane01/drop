@@ -153,7 +153,7 @@ export function FilesPanel({
   }
 
   return (
-    <div className="flex flex-col h-full gap-5 min-h-0 h-[55vh] sm:h-[60vh] md:h-[65vh] max-h-[calc(100vh-220px)] min-h-80">
+    <div className="flex flex-col h-full gap-5 min-h-0 h-[60vh] sm:h-[68vh] md:h-[75vh] max-h-[calc(100vh-180px)] min-h-[480px]">
       {/* Drag & Drop Upload Dropzone */}
       <div className="shrink-0">
         <UploadDropzone
@@ -175,21 +175,17 @@ export function FilesPanel({
         onCancel={cancelUpload}
       />
 
-      {/* Recent Uploads List */}
+      {/* Uploaded Files List */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 select-none shrink-0">
-          Recent uploads
+          Files ({groupedItems.length})
         </h3>
         {groupedItems.length === 0 ? (
           <EmptyFiles />
         ) : (
-          <div className="relative flex-1 min-h-0 overflow-hidden">
-            {/* Visual fade overlays */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-background to-transparent z-20" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-background to-transparent z-20" />
-
+          <div className="flex-1 min-h-0 overflow-hidden">
             <ScrollArea className="h-full w-full">
-              <div className="pt-2.5 pb-4 space-y-1">
+              <div className="pt-1 pb-3 pr-2 space-y-1">
                 <Files className="w-full p-0 bg-transparent space-y-1 border-none shadow-none">
                   {groupedItems.map((item) => {
                   if (item.type === "file") {

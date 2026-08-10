@@ -41,15 +41,15 @@ export function FileRow({ file, onDownload, onRename, onDelete, isDeleting }: Fi
       icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
       className="w-full"
     >
-      <div className="flex items-center justify-between w-full pointer-events-auto">
-        <div className="space-y-0.5">
-          <p className="truncate text-sm font-medium text-foreground leading-snug">{file.fileName}</p>
+      <div className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3">
+        <div className="space-y-0.5 min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground leading-snug" title={file.fileName}>{file.fileName}</p>
           <p className="text-xs text-muted-foreground leading-normal">
             {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
           </p>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <Tooltip>
             <TooltipTrigger
               render={

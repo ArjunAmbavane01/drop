@@ -50,8 +50,8 @@ export function FolderTree({
               value={`${uploadId}-${node.relativePath}`}
               className="rounded-lg border-none transition-colors w-full"
             >
-              <AnimateFolderTrigger className="flex items-center justify-between w-full cursor-pointer py-1">
-                <span className="truncate leading-none text-sm font-medium text-foreground">{node.name}</span>
+              <AnimateFolderTrigger className="flex items-center justify-between w-full min-w-0 cursor-pointer py-1 gap-2">
+                <span className="truncate leading-none text-sm font-medium text-foreground min-w-0 flex-1" title={node.name}>{node.name}</span>
               </AnimateFolderTrigger>
               <AnimateFolderContent className="py-1 pl-2">
                 <FolderTree
@@ -88,15 +88,15 @@ export function FolderTree({
             icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
             className="group w-full"
           >
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="truncate leading-none text-sm font-medium text-foreground">{node.name}</span>
-                <span className="text-xs text-muted-foreground/60">
+            <div className="flex items-center justify-between w-full min-w-0 gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="truncate leading-none text-sm font-medium text-foreground min-w-0" title={node.name}>{node.name}</span>
+                <span className="text-xs text-muted-foreground/60 shrink-0">
                   ({formatFileSize(file.sizeBytes)})
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 transition-opacity">
+              <div className="flex items-center gap-1 transition-opacity shrink-0">
                 <Tooltip>
                   <TooltipTrigger
                     render={

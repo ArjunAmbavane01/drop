@@ -230,6 +230,7 @@ export function RoomDashboard({
           onLeave={handleLeaveRoom}
           onClearRoom={handleClearSession}
           onlineUserIds={onlineUserIds}
+          currentUserId={currentUser.id}
         />
 
         <div className="flex flex-col flex-1 mt-4">
