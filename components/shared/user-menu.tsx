@@ -61,8 +61,7 @@ export function UserMenu({ user }: UserMenuProps) {
       await authClient.signOut();
       toast.success("Account deleted successfully.");
       setDeleteDialogOpen(false);
-      router.push("/sign-in");
-      router.refresh();
+      window.location.replace("/sign-up");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Unable to delete account."

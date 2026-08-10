@@ -20,6 +20,7 @@ export default async function RoomPage({
 
   return (
     <RoomDashboard
+      key={roomId}
       initialSnapshot={snapshot}
       currentUser={{
         id: session.user.id,

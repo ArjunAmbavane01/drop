@@ -22,10 +22,14 @@ export async function createSignedUploadUrl(objectKey: string, contentType: stri
   return getSignedUrl(getR2(), command, { expiresIn: 60 * 10 });
 }
 
-export async function createSignedDownloadUrl(objectKey: string) {
+export async function createSignedDownloadUrl(objectKey: string, fileName?: string) {
+  const safeFilename = fileName ? encodeURIComponent(fileName) : undefined;
   const command = new GetObjectCommand({
     Bucket: env.r2BucketName,
     Key: objectKey,
+    ResponseContentDisposition: safeFilename
+      ? `attachment; filename="${safeFilename}"; filename*=UTF-8''${safeFilename}`
+      : "attachment",
   });
 
   return getSignedUrl(getR2(), command, { expiresIn: 60 * 5 });

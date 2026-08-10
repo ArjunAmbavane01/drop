@@ -7,13 +7,19 @@ import type { RoomMember, RoomSnapshot } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { RoomCodeCopy } from "@/components/ui/room-code-copy";
-import { ElasticStack } from "@/components/ui/elastic-stack";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  AvatarGroup,
+} from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getAvatarDataUri } from "@/lib/avatar";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,13 +50,6 @@ export function RoomHeader({
 }) {
   const router = useRouter();
 
-  const stackItems = members.map((member) => ({
-    id: member.id,
-    name: member.name,
-    image: getAvatarDataUri(member.id),
-    isOnline: onlineUserIds.includes(member.id),
-  }));
-
   return (
     <header className="flex items-center justify-between gap-4 pb-4">
       {/* Left side: Back button & Room Details */}
@@ -80,9 +79,39 @@ export function RoomHeader({
 
       {/* Right side: Participants, Theme toggle & Clear/Leave room */}
       <div className="flex items-center gap-3 shrink-0">
-        {/* ElasticStack Participants */}
+        {/* Room Member Avatars */}
         <div className="flex items-center gap-2">
-          <ElasticStack items={stackItems} itemSize={24} overlap={6} pushForce={4} />
+          <AvatarGroup className="-space-x-2">
+            {members.map((member) => {
+              const isOnline = onlineUserIds.includes(member.id);
+              const avatarSrc = getAvatarDataUri(member.id);
+
+              return (
+                <Tooltip key={member.id}>
+                  <TooltipTrigger
+                    render={
+                      <div className="inline-flex focus:outline-none">
+                        <Avatar
+                          className={cn(
+                            "size-7 rounded-full border border-primary/60 bg-background transition-opacity cursor-pointer",
+                            isOnline ? "opacity-100" : "grayscale opacity-60"
+                          )}
+                        >
+                          <AvatarImage src={avatarSrc} alt={member.name} className="rounded-full" />
+                          <AvatarFallback className="rounded-full text-xs font-medium">
+                            {member.name ? member.name.charAt(0).toUpperCase() : "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    }
+                  />
+                  <TooltipContent side="top" className="text-xs">
+                    {member.name} {isOnline ? "(Online)" : "(Offline)"}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </AvatarGroup>
           <span className="text-xs text-muted-foreground font-medium hidden md:inline-block">
             {members.length} {members.length === 1 ? "member" : "members"}
           </span>

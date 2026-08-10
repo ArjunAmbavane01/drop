@@ -19,8 +19,9 @@ export function useRoomEvents(
   });
 
   useEffect(() => {
+    lastEventIdRef.current = 0;
     const eventSource = new EventSource(
-      `/api/rooms/${roomId}/events?lastEventId=${lastEventIdRef.current}`,
+      `/api/rooms/${roomId}/events?lastEventId=0`,
     );
 
     eventSource.onmessage = (message) => {

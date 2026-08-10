@@ -128,9 +128,9 @@ export const uploads = pgTable(
     roomId: uuid("room_id")
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
-    uploaderId: text("uploader_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    uploaderId: text("uploader_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true })
       .notNull()
@@ -148,9 +148,9 @@ export const uploadedFiles = pgTable(
     roomId: uuid("room_id")
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
-    uploaderId: text("uploader_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    uploaderId: text("uploader_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     uploadId: uuid("upload_id")
       .references(() => uploads.id, { onDelete: "cascade" }),
     objectKey: text("object_key").notNull(),

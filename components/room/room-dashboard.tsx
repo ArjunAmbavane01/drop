@@ -32,7 +32,7 @@ export function RoomDashboard({
   const [activeTab, setActiveTab] = useState<"text" | "files">("text");
   const [copied, setCopied] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
-  const isOwner = initialSnapshot.room.ownerId === currentUser.id;
+  const isOwner = snapshot.room.ownerId === currentUser.id;
 
   const textValueRef = useRef(initialSnapshot.text.value);
   const saveSequenceRef = useRef(0);
@@ -41,11 +41,22 @@ export function RoomDashboard({
   const localRevisionRef = useRef(0);
   const remoteRevisionRef = useRef(0);
 
+  useEffect(() => {
+    setSnapshot(initialSnapshot);
+    setTextValue(initialSnapshot.text.value);
+    textValueRef.current = initialSnapshot.text.value;
+    lastRemoteTextRef.current = initialSnapshot.text.value;
+    localRevisionRef.current = 0;
+    remoteRevisionRef.current = 0;
+    saveSequenceRef.current = 0;
+    lastAckedSaveRef.current = 0;
+  }, [initialSnapshot.room.id]);
+
   const persistText = useDebouncedCallback(async (nextText: string, revision: number) => {
     const saveId = ++saveSequenceRef.current;
 
     try {
-      await saveTextAction(initialSnapshot.room.id, { text: nextText });
+      await saveTextAction(snapshot.room.id, { text: nextText });
 
       if (saveId > lastAckedSaveRef.current) lastAckedSaveRef.current = saveId;
 
@@ -135,7 +146,7 @@ export function RoomDashboard({
     });
   }, []);
 
-  useRoomEvents(initialSnapshot.room.id, handleEvent, setOnlineUserIds);
+  useRoomEvents(snapshot.room.id, handleEvent, setOnlineUserIds);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -182,7 +193,7 @@ export function RoomDashboard({
 
   async function handleLeaveRoom() {
     try {
-      await leaveRoomAction(initialSnapshot.room.id);
+      await leaveRoomAction(snapshot.room.id);
       toast.success("You left the room.");
       router.push("/");
       router.refresh();
@@ -193,7 +204,7 @@ export function RoomDashboard({
 
   async function handleClearSession() {
     try {
-      await clearRoomAction(initialSnapshot.room.id);
+      await clearRoomAction(snapshot.room.id);
       remoteRevisionRef.current = localRevisionRef.current;
       lastRemoteTextRef.current = "";
       textValueRef.current = "";

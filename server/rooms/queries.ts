@@ -21,7 +21,12 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
   const [membership] = await getDb()
     .select({ roomId: roomMemberships.roomId })
     .from(roomMemberships)
-    .where(eq(roomMemberships.roomId, roomId))
+    .where(
+      and(
+        eq(roomMemberships.roomId, roomId),
+        eq(roomMemberships.userId, userId)
+      )
+    )
     .limit(1);
 
   if (!membership) {
@@ -36,11 +41,7 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
       ownerId: rooms.ownerId,
     })
     .from(rooms)
-    .innerJoin(
-      roomMemberships,
-      eq(roomMemberships.roomId, rooms.id),
-    )
-    .where(eq(roomMemberships.userId, userId))
+    .where(eq(rooms.id, roomId))
     .limit(1);
 
   if (!room) {
@@ -73,13 +74,13 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
       sizeBytes: uploadedFiles.sizeBytes,
       objectKey: uploadedFiles.objectKey,
       uploadedAt: uploadedFiles.uploadedAt,
-      uploaderId: users.id,
+      uploaderId: uploadedFiles.uploaderId,
       uploaderName: users.name,
       uploadId: uploadedFiles.uploadId,
       uploadName: uploads.name,
     })
     .from(uploadedFiles)
-    .innerJoin(users, eq(users.id, uploadedFiles.uploaderId))
+    .leftJoin(users, eq(users.id, uploadedFiles.uploaderId))
     .leftJoin(uploads, eq(uploads.id, uploadedFiles.uploadId))
     .where(eq(uploadedFiles.roomId, roomId))
     .orderBy(desc(uploadedFiles.uploadedAt));
@@ -100,8 +101,8 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
       objectKey: file.objectKey,
       uploadedAt: file.uploadedAt.toISOString(),
       uploader: {
-        id: file.uploaderId,
-        name: file.uploaderName,
+        id: file.uploaderId ?? "",
+        name: file.uploaderName ?? "Former member",
       },
       thumbnailUrl: file.contentType?.startsWith("image/")
         ? `${env.r2PublicBaseUrl}/${file.objectKey}`

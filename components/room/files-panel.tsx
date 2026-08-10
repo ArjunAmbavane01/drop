@@ -11,6 +11,7 @@ import {
 } from "@/server/rooms/actions";
 import type { RoomFile } from "@/types/rooms";
 import { Files } from "@/components/animate-ui/components/radix/files";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFileUpload } from "./files/use-file-upload";
 import { groupFilesAndFolders } from "./files/file-tree-utils";
 import { UploadDropzone } from "./files/upload-dropzone";
@@ -44,6 +45,9 @@ export function FilesPanel({
   const [renameFolderTarget, setRenameFolderTarget] = useState<FolderItem | null>(null);
   const [renameFolderValue, setRenameFolderValue] = useState("");
 
+  const [deletingFileIds, setDeletingFileIds] = useState<Set<string>>(new Set());
+  const [deletingFolderIds, setDeletingFolderIds] = useState<Set<string>>(new Set());
+
   const {
     uploads,
     isDragging,
@@ -62,8 +66,14 @@ export function FilesPanel({
 
   async function handleDownload(fileId: string) {
     try {
-      const { url } = await getFileDownloadUrlAction(fileId);
-      window.open(url, "_blank", "noopener,noreferrer");
+      const { url, fileName } = await getFileDownloadUrlAction(fileId);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to download file.");
     }
@@ -71,7 +81,12 @@ export function FilesPanel({
 
   async function handleDownloadFolder(uploadId: string) {
     try {
-      window.open(`/api/folders/${uploadId}/download`, "_blank", "noopener,noreferrer");
+      const link = document.createElement("a");
+      link.href = `/api/folders/${uploadId}/download`;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to download folder.");
     }
@@ -104,38 +119,54 @@ export function FilesPanel({
   }
 
   async function handleDelete(fileId: string) {
+    setDeletingFileIds((prev) => new Set(prev).add(fileId));
     try {
       await deleteFileAction(fileId);
       onFileDelete(fileId);
       toast.success("File deleted.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to delete file.");
+    } finally {
+      setDeletingFileIds((prev) => {
+        const next = new Set(prev);
+        next.delete(fileId);
+        return next;
+      });
     }
   }
 
   async function handleDeleteFolder(uploadId: string) {
+    setDeletingFolderIds((prev) => new Set(prev).add(uploadId));
     try {
       await deleteFolderAction(uploadId);
       onFolderDelete(uploadId);
       toast.success("Folder deleted.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to delete folder.");
+    } finally {
+      setDeletingFolderIds((prev) => {
+        const next = new Set(prev);
+        next.delete(uploadId);
+        return next;
+      });
     }
   }
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className="flex flex-col h-full gap-5 min-h-0 h-[55vh] sm:h-[60vh] md:h-[65vh] max-h-[calc(100vh-220px)] min-h-80">
       {/* Drag & Drop Upload Dropzone */}
-      <UploadDropzone
-        isDragging={isDragging}
-        fileInputRef={fileInputRef}
-        folderInputRef={folderInputRef}
-        onPickerChange={handlePickerChange}
-        onDrop={handleDrop}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-      />
+      <div className="shrink-0">
+        <UploadDropzone
+          isDragging={isDragging}
+          fileInputRef={fileInputRef}
+          folderInputRef={folderInputRef}
+          onPickerChange={handlePickerChange}
+          onDrop={handleDrop}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+        />
+      </div>
 
       {/* Active Upload Queue */}
       <UploadQueue
@@ -145,53 +176,64 @@ export function FilesPanel({
       />
 
       {/* Recent Uploads List */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 select-none">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 select-none shrink-0">
           Recent uploads
         </h3>
-        <div className="flex-1 overflow-y-auto space-y-1">
-          {groupedItems.length === 0 ? (
-            <EmptyFiles />
-          ) : (
-            <Files className="w-full p-0 pt-3 bg-transparent space-y-1 border-none">
-              {groupedItems.map((item) => {
-                if (item.type === "file") {
+        {groupedItems.length === 0 ? (
+          <EmptyFiles />
+        ) : (
+          <div className="relative flex-1 min-h-0 overflow-hidden">
+            {/* Visual fade overlays */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-background to-transparent z-20" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-background to-transparent z-20" />
+
+            <ScrollArea className="h-full w-full">
+              <div className="pt-2.5 pb-4 space-y-1">
+                <Files className="w-full p-0 bg-transparent space-y-1 border-none shadow-none">
+                  {groupedItems.map((item) => {
+                  if (item.type === "file") {
+                    return (
+                      <FileRow
+                        key={item.file.id}
+                        file={item.file}
+                        onDownload={handleDownload}
+                        onRename={(file) => {
+                          setRenameTarget(file);
+                          setRenameValue(file.fileName);
+                        }}
+                        onDelete={handleDelete}
+                        isDeleting={deletingFileIds.has(item.file.id)}
+                      />
+                    );
+                  }
+
                   return (
-                    <FileRow
-                      key={item.file.id}
-                      file={item.file}
-                      onDownload={handleDownload}
-                      onRename={(file) => {
+                    <FolderRow
+                      key={item.uploadId}
+                      folder={item}
+                      onDownloadFolder={handleDownloadFolder}
+                      onRenameFolder={(folder) => {
+                        setRenameFolderTarget(folder);
+                        setRenameFolderValue(folder.name);
+                      }}
+                      onDeleteFolder={handleDeleteFolder}
+                      onDownloadFile={handleDownload}
+                      onRenameFile={(file) => {
                         setRenameTarget(file);
                         setRenameValue(file.fileName);
                       }}
-                      onDelete={handleDelete}
+                      onDeleteFile={handleDelete}
+                      isDeleting={deletingFolderIds.has(item.uploadId)}
+                      deletingFileIds={deletingFileIds}
                     />
                   );
-                }
-
-                return (
-                  <FolderRow
-                    key={item.uploadId}
-                    folder={item}
-                    onDownloadFolder={handleDownloadFolder}
-                    onRenameFolder={(folder) => {
-                      setRenameFolderTarget(folder);
-                      setRenameFolderValue(folder.name);
-                    }}
-                    onDeleteFolder={handleDeleteFolder}
-                    onDownloadFile={handleDownload}
-                    onRenameFile={(file) => {
-                      setRenameTarget(file);
-                      setRenameValue(file.fileName);
-                    }}
-                    onDeleteFile={handleDelete}
-                  />
-                );
-              })}
-            </Files>
-          )}
-        </div>
+                })}
+                </Files>
+              </div>
+            </ScrollArea>
+          </div>
+        )}
       </div>
 
       {/* Rename File Dialog */}

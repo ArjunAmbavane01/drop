@@ -4,6 +4,7 @@ import { Download, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -26,6 +27,8 @@ interface FolderRowProps {
   onDownloadFile: (fileId: string) => void;
   onRenameFile: (file: RoomFile) => void;
   onDeleteFile: (fileId: string) => void;
+  isDeleting?: boolean;
+  deletingFileIds?: Set<string>;
 }
 
 export function FolderRow({
@@ -36,6 +39,8 @@ export function FolderRow({
   onDownloadFile,
   onRenameFile,
   onDeleteFile,
+  isDeleting,
+  deletingFileIds,
 }: FolderRowProps) {
   const tree = buildTree(folder.files);
 
@@ -91,15 +96,16 @@ export function FolderRow({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer disabled:opacity-50"
                   onClick={() => onDeleteFolder(folder.uploadId)}
+                  disabled={isDeleting}
                   aria-label="Delete"
                 >
-                  <Trash2 className="size-4" />
+                  {isDeleting ? <Spinner className="size-4 text-destructive" /> : <Trash2 className="size-4" />}
                 </Button>
               }
             />
-            <TooltipContent>Delete</TooltipContent>
+            <TooltipContent>{isDeleting ? "Deleting..." : "Delete"}</TooltipContent>
           </Tooltip>
         </div>
       </AnimateFolderTrigger>
@@ -110,6 +116,7 @@ export function FolderRow({
           onFileDownload={onDownloadFile}
           onFileRename={onRenameFile}
           onFileDelete={onDeleteFile}
+          deletingFileIds={deletingFileIds}
         />
       </AnimateFolderContent>
     </AnimateFolderItem>

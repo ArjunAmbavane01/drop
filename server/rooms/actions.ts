@@ -180,22 +180,17 @@ export async function deleteAccountAction() {
 
   const ownedRoomIds = ownedRooms.map((r) => r.id);
 
-  // 2. Find all files in user's owned rooms + any files uploaded by the user in other rooms
-  const filesToDelete = await getDb()
-    .select({ objectKey: uploadedFiles.objectKey })
-    .from(uploadedFiles)
-    .where(
-      ownedRoomIds.length > 0
-        ? or(
-            eq(uploadedFiles.uploaderId, userId),
-            inArray(uploadedFiles.roomId, ownedRoomIds)
-          )
-        : eq(uploadedFiles.uploaderId, userId)
-    );
+  // 2. Find and delete storage files only in rooms owned by the user (which will be deleted)
+  if (ownedRoomIds.length > 0) {
+    const filesToDelete = await getDb()
+      .select({ objectKey: uploadedFiles.objectKey })
+      .from(uploadedFiles)
+      .where(inArray(uploadedFiles.roomId, ownedRoomIds));
 
-  await Promise.all(
-    filesToDelete.map((file) => removeObject(file.objectKey))
-  );
+    await Promise.all(
+      filesToDelete.map((file) => removeObject(file.objectKey))
+    );
+  }
 
   // 3. Notify rooms the user joined (that they do not own) that the user left
   const joinedMemberships = await getDb()
@@ -535,6 +530,6 @@ export async function getFileDownloadUrlAction(fileId: string) {
   }
 
   await requireRoomAccess(file.roomId, session.user.id);
-  const url = await createSignedDownloadUrl(file.objectKey);
-  return { url };
+  const url = await createSignedDownloadUrl(file.objectKey, file.fileName);
+  return { url, fileName: file.fileName };
 }

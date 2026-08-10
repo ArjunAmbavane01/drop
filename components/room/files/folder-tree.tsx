@@ -5,6 +5,7 @@ import { Download, File, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -26,6 +27,7 @@ interface FolderTreeProps {
   onFileDownload: (fileId: string) => void;
   onFileRename: (file: RoomFile) => void;
   onFileDelete: (fileId: string) => void;
+  deletingFileIds?: Set<string>;
 }
 
 export function FolderTree({
@@ -34,6 +36,7 @@ export function FolderTree({
   onFileDownload,
   onFileRename,
   onFileDelete,
+  deletingFileIds,
 }: FolderTreeProps) {
   const nodeEntries = Object.values(nodes);
 
@@ -57,6 +60,7 @@ export function FolderTree({
                   onFileDownload={onFileDownload}
                   onFileRename={onFileRename}
                   onFileDelete={onFileDelete}
+                  deletingFileIds={deletingFileIds}
                 />
               </AnimateFolderContent>
             </AnimateFolderItem>
@@ -66,6 +70,7 @@ export function FolderTree({
         const file = node.file!;
         const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
         const Icon = FileIconMap[ext] || File;
+        const isDeleting = deletingFileIds?.has(file.id);
 
         const ThumbnailIcon = () => (
           <Image
@@ -136,18 +141,19 @@ export function FolderTree({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:text-destructive hover:bg-destructive/10 cursor-pointer text-muted-foreground"
+                        className="hover:text-destructive hover:bg-destructive/10 cursor-pointer text-muted-foreground disabled:opacity-50"
                         onClick={(e) => {
                           e.stopPropagation();
                           onFileDelete(file.id);
                         }}
+                        disabled={isDeleting}
                         aria-label="Delete"
                       >
-                        <Trash2 className="size-4" />
+                        {isDeleting ? <Spinner className="size-4 text-destructive" /> : <Trash2 className="size-4" />}
                       </Button>
                     }
                   />
-                  <TooltipContent>Delete</TooltipContent>
+                  <TooltipContent>{isDeleting ? "Deleting..." : "Delete"}</TooltipContent>
                 </Tooltip>
               </div>
             </div>
