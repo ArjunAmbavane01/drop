@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { RoomCodeCopy } from "@/components/ui/room-code-copy";
 import { ElasticStack } from "@/components/ui/elastic-stack";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getAvatarDataUri } from "@/lib/avatar";
 import {
   AlertDialog,
@@ -50,13 +55,21 @@ export function RoomHeader({
     <header className="flex items-center justify-between gap-4 pb-4">
       {/* Left side: Back button & Room Details */}
       <div className="flex items-center gap-8">
-        <Button
-          size="icon-sm"
-          variant={"outline"}
-          onClick={() => { router.push("/") }}
-        >
-          <ArrowLeft />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-sm"
+                variant={"outline"}
+                onClick={() => { router.push("/") }}
+                aria-label="Back"
+              >
+                <ArrowLeft />
+              </Button>
+            }
+          />
+          <TooltipContent>Back</TooltipContent>
+        </Tooltip>
         <div className="flex items-center gap-3">
           <h1 className="font-semibold text-foreground truncate">
             {room.name}
@@ -85,27 +98,27 @@ export function RoomHeader({
               render={
                 <Button
                   variant="ghost"
-                  size="xs"
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5 font-medium transition-colors cursor-pointer"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   title="Clear room"
                 />
               }
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 />
               <span className="hidden sm:inline">Clear room</span>
             </AlertDialogTrigger>
-            <AlertDialogContent className="rounded-xl max-w-sm">
+            <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-sm font-semibold">Clear this room?</AlertDialogTitle>
-                <AlertDialogDescription className="text-xs text-muted-foreground">
+                <AlertDialogTitle>Clear this room?</AlertDialogTitle>
+                <AlertDialogDescription>
                   This permanently deletes all uploaded files and clears the shared text for everyone in this room.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter className="mt-4 gap-1.5">
-                <AlertDialogCancel className="h-8 text-xs">Cancel</AlertDialogCancel>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={onClearRoom}
-                  className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  variant={"destructive"}
                 >
                   Clear room
                 </AlertDialogAction>
@@ -115,12 +128,12 @@ export function RoomHeader({
         ) : (
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             onClick={onLeave}
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5 font-medium transition-colors cursor-pointer"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             title="Leave room"
           >
-            <DoorOpen className="h-3.5 w-3.5" />
+            <DoorOpen />
             <span className="hidden sm:inline">Leave room</span>
           </Button>
         )}

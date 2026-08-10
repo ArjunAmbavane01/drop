@@ -5,6 +5,11 @@ import { Download, File, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { FileItem as AnimateFileItem } from "@/components/animate-ui/components/radix/files";
 import { FileIconMap } from "../file-icons";
 
@@ -43,33 +48,54 @@ export function FileRow({ file, onDownload, onRename, onDelete }: FileRowProps) 
         </div>
 
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={() => onDownload(file.id)}
-            title="Download file"
-          >
-            <Download className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={() => onRename(file)}
-            title="Rename file"
-          >
-            <Pencil className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-            onClick={() => onDelete(file.id)}
-            title="Delete file"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer text-muted-foreground hover:text-foreground"
+                  onClick={() => onDownload(file.id)}
+                  aria-label="Download"
+                >
+                  <Download className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Download</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer text-muted-foreground hover:text-foreground"
+                  onClick={() => onRename(file)}
+                  aria-label="Rename"
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Rename</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                  onClick={() => onDelete(file.id)}
+                  aria-label="Delete"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Delete</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </AnimateFileItem>

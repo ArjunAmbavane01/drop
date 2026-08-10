@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export interface ElasticStackItem {
   id: string | number;
@@ -28,78 +28,69 @@ export function ElasticStack({
 }: ElasticStackProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const total = items.length;
-  // Custom spring-like easing from the original CSS
-  const springEasing = "linear(0, 0.79 14.4%, 1.026 22.4%, 1.164 31.2%, 1.207 38.2%, 1.208 46.2%, 1.033 80%, 1)";
-
   return (
-    <TooltipProvider>
-      <div
-        className={cn("flex items-center justify-center cursor-pointer py-1", className)}
-        onMouseLeave={() => setHoveredIndex(null)}
-        {...props}
-      >
-        {items.map((item, i) => {
-          let translateX = 0;
-          let scale = 1;
-          let zIndex = i; // Base stacking order
-          const isHovered = hoveredIndex === i;
+    <div
+      className={cn("flex items-center justify-center cursor-pointer py-1 select-none", className)}
+      onMouseLeave={() => setHoveredIndex(null)}
+      {...props}
+    >
+      {items.map((item, i) => {
+        let translateX = 0;
+        let scale = 1;
+        const isHovered = hoveredIndex === i;
 
-          if (hoveredIndex !== null) {
-            if (i > hoveredIndex) {
-              translateX = Math.min(pushForce * (total - i - 1), overlap);
-            } else if (i < hoveredIndex) {
-              translateX = -Math.min(pushForce * i, overlap);
-            } else {
-              scale = 1.25;
-              zIndex = 100;
-            }
+        if (hoveredIndex !== null) {
+          if (i > hoveredIndex) {
+            translateX = Math.min(pushForce * (i - hoveredIndex), overlap * 1.5);
+          } else if (i < hoveredIndex) {
+            translateX = -Math.min(pushForce * (hoveredIndex - i), overlap * 1.5);
+          } else {
+            scale = 1.25;
           }
+        }
 
-          return (
-            <Tooltip key={item.id}>
-              <TooltipTrigger
-                render={
-                  <div
-                    onMouseEnter={() => setHoveredIndex(i)}
-                    className={cn(
-                      "relative flex items-center justify-center rounded-full isolate transition-all duration-700 bg-neutral-100 dark:bg-neutral-800",
-                      "border-2 border-background",
-                      isHovered ? "shadow-md" : "shadow-sm",
-                      item.isOnline ? "" : "grayscale opacity-50 contrast-125"
-                    )}
-                    style={{
-                      width: itemSize,
-                      height: itemSize,
-                      marginLeft: i === 0 ? 0 : -overlap,
-                      transform: `translateX(${translateX}px) scale(${scale})`,
-                      transitionTimingFunction: springEasing,
-                      zIndex,
-                    }}
-                  >
-                    {item.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img 
-                        src={item.image} 
-                        alt={item.name || `Avatar ${i}`}
-                        className="w-full h-full object-cover rounded-full pointer-events-none"
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full flex items-center justify-center font-semibold text-neutral-500 dark:text-neutral-400">
-                        {item.name ? item.name.charAt(0) : i + 1}
-                      </div>
-                    )}
-                  </div>
-                }
-              />
-              <TooltipContent className="text-xs">
-                {item.name || `User ${item.id}`} {item.isOnline ? "(Online)" : "(Offline)"}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
-      </div>
-    </TooltipProvider>
+        return (
+          <Tooltip key={item.id}>
+            <TooltipTrigger
+              render={
+                <div
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  className={cn(
+                    "relative flex items-center justify-center rounded-full transition-transform duration-300 ease-out bg-neutral-100 dark:bg-neutral-800",
+                    "border-2 border-background shadow-xs",
+                    isHovered ? "shadow-md" : "",
+                    item.isOnline ? "opacity-100" : "grayscale opacity-60"
+                  )}
+                  style={{
+                    width: itemSize,
+                    height: itemSize,
+                    marginLeft: i === 0 ? 0 : -overlap,
+                    transform: `translateX(${translateX}px) scale(${scale})`,
+                    zIndex: isHovered ? 40 : i + 1,
+                  }}
+                >
+                  {item.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.image}
+                      alt={item.name || `Avatar ${i}`}
+                      className="w-full h-full object-cover rounded-full pointer-events-none"
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full flex items-center justify-center font-semibold text-[10px] text-neutral-500 dark:text-neutral-400 pointer-events-none">
+                      {item.name ? item.name.charAt(0).toUpperCase() : i + 1}
+                    </div>
+                  )}
+                </div>
+              }
+            />
+            <TooltipContent className="text-xs">
+              {item.name || `User ${item.id}`} {item.isOnline ? "(Online)" : "(Offline)"}
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 }
 

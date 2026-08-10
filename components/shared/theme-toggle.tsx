@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { MoonStar, SunMedium } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
@@ -14,24 +19,24 @@ export function ThemeToggle() {
   }, []);
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      title={
-        mounted
-          ? resolvedTheme === "dark"
-            ? "Switch to light theme"
-            : "Switch to dark theme"
-          : "Toggle theme"
-      }
-      aria-label="Toggle theme"
-    >
-      {mounted && resolvedTheme === "dark" ? (
-        <MoonStar className="size-4" />
-      ) : (
-        <SunMedium className="size-4" />
-      )}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            aria-label="Toggle theme"
+          >
+            {mounted && resolvedTheme === "dark" ? (
+              <MoonStar className="size-4" />
+            ) : (
+              <SunMedium className="size-4" />
+            )}
+          </Button>
+        }
+      />
+      <TooltipContent>Toggle theme</TooltipContent>
+    </Tooltip>
   );
 }

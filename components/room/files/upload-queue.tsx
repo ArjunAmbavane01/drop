@@ -3,7 +3,13 @@
 import { RefreshCw, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { UploadState } from "./types";
+import { Button } from "@/components/ui/button";
 
 interface UploadQueueProps {
   uploads: UploadState[];
@@ -28,41 +34,71 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.2 }}
-                className="rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2.5 text-xs"
+                className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2 text-xs"
               >
-                <div className="flex items-center justify-between gap-3 mb-1.5">
-                  <p className="truncate font-medium text-foreground flex-1">{upload.name}</p>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-muted-foreground">
-                      {upload.status === "complete"
-                        ? "Uploaded"
-                        : upload.status === "error"
-                          ? "Failed"
-                          : `${upload.progress}%`}
-                    </span>
-                    {upload.status === "error" && (
-                      <button
-                        onClick={() => onRetry(upload.id)}
-                        className="text-primary hover:opacity-80 transition-opacity p-0.5 rounded cursor-pointer"
-                        title="Retry"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onCancel(upload.id)}
-                      className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded cursor-pointer"
-                      title="Cancel"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                {/* Filename */}
+                <p
+                  className="truncate font-medium text-foreground min-w-0 max-w-35 sm:max-w-45 shrink-0"
+                  title={upload.name}
+                >
+                  {upload.name}
+                </p>
+
+                {/* Progress bar or error message */}
+                <div className="flex-1 min-w-15">
+                  {upload.status === "error" ? (
+                    <p className="text-[11px] text-destructive truncate">
+                      {upload.error || "Upload failed"}
+                    </p>
+                  ) : (
+                    <Progress value={upload.progress} className="w-full" />
+                  )}
                 </div>
-                {upload.status === "error" ? (
-                  <p className="text-[11px] text-destructive truncate">{upload.error}</p>
-                ) : (
-                  <Progress value={upload.progress} className="h-1 bg-muted transition-all duration-200" />
-                )}
+
+                {/* Percentage / Status */}
+                <span className="text-muted-foreground tabular-nums shrink-0 text-right min-w-8.6">
+                  {upload.status === "complete"
+                    ? "100%"
+                    : upload.status === "error"
+                      ? "Failed"
+                      : `${upload.progress}%`}
+                </span>
+
+                {/* Cancel & Retry action buttons */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {upload.status === "error" && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            onClick={() => onRetry(upload.id)}
+                            variant={"secondary"}
+                            aria-label="Retry"
+                          >
+                            <RefreshCw />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Retry</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant={"ghost"}
+                          size={"icon-sm"}
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => onCancel(upload.id)}
+                          aria-label="Cancel"
+                        >
+                          <X />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Cancel</TooltipContent>
+                  </Tooltip>
+                </div>
               </motion.div>
             ))}
           </div>

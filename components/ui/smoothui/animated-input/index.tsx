@@ -2,6 +2,11 @@ import { motion, useReducedMotion } from "motion/react";
 import { forwardRef, useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const EASE_IN_OUT_CUBIC_X1 = 0.4;
 const EASE_IN_OUT_CUBIC_Y1 = 0;
@@ -126,18 +131,27 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
           value={val}
         />
         {isPassword && (
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
-            aria-label={showPassword ? "Hide password" : "Show password"}
-          >
-            {showPassword ? (
-              <EyeOff className="size-4" />
-            ) : (
-              <Eye className="size-4" />
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              }
+            />
+            <TooltipContent>
+              {showPassword ? "Hide password" : "Show password"}
+            </TooltipContent>
+          </Tooltip>
         )}
         <motion.label
           animate={getLabelAnimation()}

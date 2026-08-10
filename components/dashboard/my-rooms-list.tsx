@@ -15,6 +15,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Trash2, Edit2 } from "lucide-react";
 import { RoomRowCard } from "./room-row-card";
 import { RoomRowList } from "./room-row-list";
@@ -74,23 +79,37 @@ export function MyRoomsList({
                 }
                 actions={
                   <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onRename(room)}
-                      title="Rename"
-                    >
-                      <Edit2 />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDeleteClick(room)}
-                      title="Delete"
-                    >
-                      <Trash2 />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onRename(room)}
+                            aria-label="Rename"
+                          >
+                            <Edit2 />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Rename</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteClick(room)}
+                            aria-label="Delete"
+                          >
+                            <Trash2 />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
                   </div>
                 }
               />

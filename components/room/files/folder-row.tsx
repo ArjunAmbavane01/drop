@@ -5,6 +5,11 @@ import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   FolderItem as AnimateFolderItem,
   FolderTrigger as AnimateFolderTrigger,
   FolderContent as AnimateFolderContent,
@@ -48,33 +53,54 @@ export function FolderRow({
         </div>
 
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={() => onDownloadFolder(folder.uploadId)}
-            title="Download folder (ZIP)"
-          >
-            <Download className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
-            onClick={() => onRenameFolder(folder)}
-            title="Rename folder"
-          >
-            <Pencil className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-            onClick={() => onDeleteFolder(folder.uploadId)}
-            title="Delete folder"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer text-muted-foreground hover:text-foreground"
+                  onClick={() => onDownloadFolder(folder.uploadId)}
+                  aria-label="Download"
+                >
+                  <Download className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Download</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer text-muted-foreground hover:text-foreground"
+                  onClick={() => onRenameFolder(folder)}
+                  aria-label="Rename"
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Rename</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                  onClick={() => onDeleteFolder(folder.uploadId)}
+                  aria-label="Delete"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Delete</TooltipContent>
+          </Tooltip>
         </div>
       </AnimateFolderTrigger>
       <AnimateFolderContent className="py-1 pl-2">

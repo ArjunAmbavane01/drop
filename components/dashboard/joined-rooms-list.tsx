@@ -14,6 +14,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LogOut } from "lucide-react";
 import { RoomRowCard } from "./room-row-card";
 import { RoomRowList } from "./room-row-list";
@@ -64,15 +69,22 @@ export function JoinedRoomsList({
                   actions={
                     !isPending && (
                       <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleLeaveClick(room)}
-                          title="Leave room"
-                        >
-                          <LogOut />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleLeaveClick(room)}
+                                aria-label="Leave room"
+                              >
+                                <LogOut />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>Leave room</TooltipContent>
+                        </Tooltip>
                       </div>
                     )
                   }
