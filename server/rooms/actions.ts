@@ -1,10 +1,11 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import {
+  users,
   rooms,
   roomMemberships,
   roomTexts,
@@ -154,7 +155,73 @@ export async function deleteRoomAction(roomId: string) {
   const session = await requireRequestSession();
   await requireRoomOwner(roomId, session.user.id);
 
+  const roomFiles = await getDb()
+    .select({ objectKey: uploadedFiles.objectKey })
+    .from(uploadedFiles)
+    .where(eq(uploadedFiles.roomId, roomId));
+
+  await Promise.all(roomFiles.map((file) => removeObject(file.objectKey)));
+
   await getDb().delete(rooms).where(eq(rooms.id, roomId));
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deleteAccountAction() {
+  const session = await requireRequestSession();
+  const userId = session.user.id;
+
+  // 1. Find all rooms owned by the user
+  const ownedRooms = await getDb()
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(eq(rooms.ownerId, userId));
+
+  const ownedRoomIds = ownedRooms.map((r) => r.id);
+
+  // 2. Find all files in user's owned rooms + any files uploaded by the user in other rooms
+  const filesToDelete = await getDb()
+    .select({ objectKey: uploadedFiles.objectKey })
+    .from(uploadedFiles)
+    .where(
+      ownedRoomIds.length > 0
+        ? or(
+            eq(uploadedFiles.uploaderId, userId),
+            inArray(uploadedFiles.roomId, ownedRoomIds)
+          )
+        : eq(uploadedFiles.uploaderId, userId)
+    );
+
+  await Promise.all(
+    filesToDelete.map((file) => removeObject(file.objectKey))
+  );
+
+  // 3. Notify rooms the user joined (that they do not own) that the user left
+  const joinedMemberships = await getDb()
+    .select({ roomId: roomMemberships.roomId })
+    .from(roomMemberships)
+    .where(eq(roomMemberships.userId, userId));
+
+  const nonOwnedJoinedRoomIds = joinedMemberships
+    .map((m) => m.roomId)
+    .filter((roomId) => !ownedRoomIds.includes(roomId));
+
+  await Promise.all(
+    nonOwnedJoinedRoomIds.map((roomId) =>
+      createRoomEvent(roomId, "member.left", {
+        member: {
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          image: session.user.image ?? null,
+        },
+      })
+    )
+  );
+
+  // 4. Delete user record (cascades to user's rooms, memberships, uploads, uploadedFiles, accounts, sessions)
+  await getDb().delete(users).where(eq(users.id, userId));
 
   revalidatePath("/");
   return { success: true };

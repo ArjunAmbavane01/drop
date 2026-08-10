@@ -16,10 +16,6 @@ function useMounted() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const mounted = useMounted();
-
-  if (!mounted) return null;
-
   const scriptProps =
     typeof window === "undefined"
       ? undefined

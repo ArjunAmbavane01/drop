@@ -105,89 +105,104 @@ export function DashboardActions({
         </p>
       </div>
       <div className="flex flex-col sm:flex-row shrink gap-2.5">
-        {/* Create Room Dialog */}
-        <TooltipProvider>
-          <Tooltip open={isRoomsFull ? undefined : false}>
+        {/* Create Room Dialog / Limit Tooltip */}
+        {isRoomsFull ? (
+          <Tooltip>
             <TooltipTrigger
               render={
-                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                  <DialogTrigger render={
-                    <Button disabled={isRoomsFull} className="w-full sm:w-auto">
-                      <Plus className="size-4" />
-                      Create Room
-                    </Button>
-                  } />
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>
-                        Create a new room
-                      </DialogTitle>
-                      <DialogDescription>
-                        Rooms let you instantly sync text and files.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <form
-                      onSubmit={createForm.handleSubmit((data) => handleCreateRoom(data))}
-                      className="space-y-4"
-                    >
-                      <Controller
-                        name="roomName"
-                        control={createForm.control}
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <Input
-                              {...field}
-                              id="create-room-name"
-                              placeholder="Enter room name"
-                              aria-invalid={fieldState.invalid}
-                              aria-label="Room Name"
-                              disabled={isCreating}
-                            />
-                            {fieldState.invalid && (
-                              <FieldError errors={[fieldState.error]} />
-                            )}
-                          </Field>
-                        )}
-                      />
-
-                      <DialogFooter>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            setCreateOpen(false);
-                            createForm.reset();
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          disabled={isCreating}
-                        >
-                          {isCreating ? "Creating..." : "Create"}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              } />
-            {isRoomsFull && (
-              <TooltipContent
-                side="bottom"
-                className="bg-destructive text-destructive-foreground border-destructive"
-                arrowClassName="bg-destructive fill-destructive"
-              >
-                <AlertCircle className="size-4 shrink-0" />
-                <span>
-                  Room limit reached. Delete a room to
-                  create a new one.
+                <span
+                  tabIndex={0}
+                  className="inline-flex w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md cursor-not-allowed"
+                >
+                  <Button
+                    disabled
+                    className="w-full sm:w-auto pointer-events-none"
+                  >
+                    <Plus className="size-4" />
+                    Create Room
+                  </Button>
                 </span>
-              </TooltipContent>
-            )}
+              }
+            />
+            <TooltipContent
+              side="bottom"
+              className="bg-destructive text-destructive-foreground border-destructive max-w-xs p-2.5"
+              arrowClassName="bg-destructive fill-destructive"
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold">Room limit reached</p>
+                  <p className="text-xs mt-0.5">
+                    Delete a room to create a new one.
+                  </p>
+                </div>
+              </div>
+            </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
+        ) : (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger
+              render={
+                <Button className="w-full sm:w-auto">
+                  <Plus className="size-4" />
+                  Create Room
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create a new room</DialogTitle>
+                <DialogDescription>
+                  Rooms let you instantly sync text and files.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form
+                onSubmit={createForm.handleSubmit((data) =>
+                  handleCreateRoom(data)
+                )}
+                className="space-y-4"
+              >
+                <Controller
+                  name="roomName"
+                  control={createForm.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <Input
+                        {...field}
+                        id="create-room-name"
+                        placeholder="Enter room name"
+                        aria-invalid={fieldState.invalid}
+                        aria-label="Room Name"
+                        disabled={isCreating}
+                      />
+                      {fieldState.invalid && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setCreateOpen(false);
+                      createForm.reset();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreating}>
+                    {isCreating ? "Creating..." : "Create"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Join Room Dialog */}
         <Dialog open={joinOpen} onOpenChange={setJoinOpen}>

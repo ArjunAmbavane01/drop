@@ -13,9 +13,7 @@ export default async function RoomPage({
 }) {
   const session = await getCurrentSession();
 
-  if (!session) {
-    redirect("/sign-in");
-  }
+  if (!session) redirect("/sign-in");
 
   const { roomId } = await params;
   const snapshot = await getRoomSnapshot(roomId, session.user.id);

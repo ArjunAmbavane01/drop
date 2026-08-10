@@ -29,7 +29,7 @@ export default function RoomLoading() {
               <Skeleton className="h-7 w-16 rounded-md" />
               <Skeleton className="h-7 w-16 rounded-md" />
             </div>
-            <Skeleton className="flex-1 rounded-xl min-h-[420px] md:min-h-[500px]" />
+            <Skeleton className="flex-1 rounded-xl min-h-105 md:min-h-125" />
           </div>
         </div>
       </div>

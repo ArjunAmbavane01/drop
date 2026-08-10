@@ -2,9 +2,11 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Copy, Check, Eraser } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
+import { Button } from "@/components/ui/button";
 import {
   leaveRoomAction,
   clearRoomAction,
@@ -28,6 +30,7 @@ export function RoomDashboard({
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [textValue, setTextValue] = useState(initialSnapshot.text.value);
   const [activeTab, setActiveTab] = useState<"text" | "files">("text");
+  const [copied, setCopied] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const isOwner = initialSnapshot.room.ownerId === currentUser.id;
 
@@ -44,9 +47,7 @@ export function RoomDashboard({
     try {
       await saveTextAction(initialSnapshot.room.id, { text: nextText });
 
-      if (saveId > lastAckedSaveRef.current) {
-        lastAckedSaveRef.current = saveId;
-      }
+      if (saveId > lastAckedSaveRef.current) lastAckedSaveRef.current = saveId;
 
       if (revision >= remoteRevisionRef.current) {
         remoteRevisionRef.current = revision;
@@ -138,11 +139,21 @@ export function RoomDashboard({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key === "1") {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        (event.key === "1" || event.code === "Digit1" || event.code === "Numpad1")
+      ) {
         event.preventDefault();
         setActiveTab("text");
       }
-      if ((event.metaKey || event.ctrlKey) && event.key === "2") {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        (event.key === "2" || event.code === "Digit2" || event.code === "Numpad2")
+      ) {
         event.preventDefault();
         setActiveTab("files");
       }
@@ -160,7 +171,9 @@ export function RoomDashboard({
 
   async function handleCopyText() {
     await navigator.clipboard.writeText(textValueRef.current);
+    setCopied(true);
     toast.success("Text copied.");
+    setTimeout(() => setCopied(false), 1800);
   }
 
   function handleClearText() {
@@ -209,42 +222,76 @@ export function RoomDashboard({
         />
 
         <div className="flex flex-col flex-1 mt-4">
-          {/* Clean Tab Navigation without heavy dividers */}
-          <div className="flex items-center gap-6 pb-3">
-            <button
-              onClick={() => setActiveTab("text")}
-              className={`text-xs font-semibold tracking-wider uppercase transition-colors relative pb-1.5 cursor-pointer ${
-                activeTab === "text"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Text
-              {activeTab === "text" && (
-                <motion.div
-                  layoutId="activeTabUnderline"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("files")}
-              className={`text-xs font-semibold tracking-wider uppercase transition-colors relative pb-1.5 cursor-pointer ${
-                activeTab === "files"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Files
-              {activeTab === "files" && (
-                <motion.div
-                  layoutId="activeTabUnderline"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-            </button>
+          {/* Action level / row containing Tabs and contextual actions */}
+          <div className="flex items-center justify-between pb-3">
+            <div className="flex items-center gap-5">
+              <button
+                type="button"
+                onClick={() => setActiveTab("text")}
+                className={`text-xs font-semibold uppercase transition-colors relative pb-1.5 cursor-pointer ${
+                  activeTab === "text"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Text
+                {activeTab === "text" && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("files")}
+                className={`text-xs font-semibold uppercase transition-colors relative pb-1.5 cursor-pointer ${
+                  activeTab === "files"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Files
+                {activeTab === "files" && (
+                  <motion.div
+                    layoutId="activeTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            </div>
+
+            {/* Contextual actions for Text tab */}
+            {activeTab === "text" && (
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={handleCopyText}
+                  className="gap-1.5 text-xs font-medium cursor-pointer"
+                  title="Copy text to clipboard"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  <span>{copied ? "Copied" : "Copy"}</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleClearText}
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5 font-medium transition-colors cursor-pointer"
+                  title="Clear text"
+                >
+                  <Eraser className="h-3.5 w-3.5" />
+                  <span>Clear text</span>
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Panel display */}
@@ -262,8 +309,6 @@ export function RoomDashboard({
                   <QuickTextPanel
                     value={textValue}
                     onChange={handleTextChange}
-                    onCopy={handleCopyText}
-                    onClear={handleClearText}
                   />
                 </motion.div>
               ) : (
