@@ -363,6 +363,24 @@ export function RoomDashboard({
                         files: previous.files.filter((file) => file.uploadId !== uploadId),
                       }))
                     }
+                    onBulkDelete={(deletedFileIds, deletedFolderIds) => {
+                      const fileIdSet = new Set(deletedFileIds);
+                      const folderIdSet = new Set(deletedFolderIds);
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files: previous.files.filter(
+                          (file) =>
+                            !fileIdSet.has(file.id) &&
+                            (!file.uploadId || !folderIdSet.has(file.uploadId))
+                        ),
+                      }));
+                    }}
+                    onRestoreFiles={(restoredFiles) => {
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files: restoredFiles,
+                      }));
+                    }}
                   />
                 </motion.div>
               )}

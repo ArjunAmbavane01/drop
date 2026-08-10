@@ -6,6 +6,7 @@ import { formatFileSize } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -20,6 +21,7 @@ import {
 } from "@/components/animate-ui/components/radix/files";
 import { FileIconMap } from "../file-icons";
 import type { TreeNode } from "./types";
+import { cn } from "@/lib/utils";
 
 interface FolderTreeProps {
   nodes: Record<string, TreeNode>;
@@ -28,6 +30,8 @@ interface FolderTreeProps {
   onFileRename: (file: RoomFile) => void;
   onFileDelete: (fileId: string) => void;
   deletingFileIds?: Set<string>;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string, isShift: boolean) => void;
 }
 
 export function FolderTree({
@@ -37,6 +41,8 @@ export function FolderTree({
   onFileRename,
   onFileDelete,
   deletingFileIds,
+  selectedIds,
+  onToggleSelect,
 }: FolderTreeProps) {
   const nodeEntries = Object.values(nodes);
 
@@ -61,6 +67,8 @@ export function FolderTree({
                   onFileRename={onFileRename}
                   onFileDelete={onFileDelete}
                   deletingFileIds={deletingFileIds}
+                  selectedIds={selectedIds}
+                  onToggleSelect={onToggleSelect}
                 />
               </AnimateFolderContent>
             </AnimateFolderItem>
@@ -71,24 +79,71 @@ export function FolderTree({
         const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
         const Icon = FileIconMap[ext] || File;
         const isDeleting = deletingFileIds?.has(file.id);
+        const isSelected = selectedIds?.has(file.id);
 
-        const ThumbnailIcon = () => (
-          <Image
-            src={file.thumbnailUrl!}
-            alt={file.fileName}
-            width={24}
-            height={24}
-            className="size-6 rounded object-cover border border-border/60"
-          />
+        const ItemIcon = () => (
+          <div
+            className="size-6 flex items-center justify-center relative select-none shrink-0"
+            onClick={(e) => {
+              if (onToggleSelect) {
+                e.stopPropagation();
+                onToggleSelect(file.id, e.shiftKey);
+              }
+            }}
+          >
+            {/* Checkbox (visible on hover or when selected) */}
+            <div
+              className={cn(
+                "absolute inset-0 flex items-center justify-center transition-opacity z-10",
+                isSelected
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 group-hover/file-item:opacity-100 pointer-events-none group-hover/file-item:pointer-events-auto"
+              )}
+            >
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelect?.(file.id, false)}
+                aria-label={`Select ${file.fileName}`}
+                className="size-3.5 bg-background shadow-xs"
+              />
+            </div>
+
+            {/* Thumbnail or File Icon */}
+            <div
+              className={cn(
+                "flex items-center justify-center transition-opacity",
+                isSelected ? "opacity-0" : "group-hover/file-item:opacity-0"
+              )}
+            >
+              {file.thumbnailUrl ? (
+                <Image
+                  src={file.thumbnailUrl}
+                  alt={file.fileName}
+                  width={24}
+                  height={24}
+                  className="size-6 rounded object-cover border border-border/60"
+                />
+              ) : (
+                <Icon className="size-4 text-muted-foreground" />
+              )}
+            </div>
+          </div>
         );
 
         return (
           <AnimateFileItem
             key={file.id}
-            icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
-            className="group w-full"
+            icon={ItemIcon}
+            className={cn("group w-full transition-colors cursor-pointer", isSelected && "bg-muted/50 rounded-lg")}
           >
-            <div className="flex items-center justify-between w-full min-w-0 gap-2">
+            <div
+              className="flex items-center justify-between w-full min-w-0 gap-2 cursor-pointer select-none"
+              onClick={(e) => {
+                if (onToggleSelect) {
+                  onToggleSelect(file.id, e.shiftKey);
+                }
+              }}
+            >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <span className="truncate leading-none text-sm font-medium text-foreground min-w-0" title={node.name}>{node.name}</span>
                 <span className="text-xs text-muted-foreground/60 shrink-0">
@@ -96,7 +151,10 @@ export function FolderTree({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 transition-opacity shrink-0">
+              <div
+                className="flex items-center gap-1 transition-opacity shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Tooltip>
                   <TooltipTrigger
                     render={

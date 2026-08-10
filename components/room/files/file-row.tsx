@@ -6,6 +6,7 @@ import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import { FileItem as AnimateFileItem } from "@/components/animate-ui/components/radix/files";
 import { FileIconMap } from "../file-icons";
+import { cn } from "@/lib/utils";
 
 interface FileRowProps {
   file: RoomFile;
@@ -20,28 +22,84 @@ interface FileRowProps {
   onRename: (file: RoomFile) => void;
   onDelete: (fileId: string) => void;
   isDeleting?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (fileId: string, isShift: boolean) => void;
 }
 
-export function FileRow({ file, onDownload, onRename, onDelete, isDeleting }: FileRowProps) {
+export function FileRow({
+  file,
+  onDownload,
+  onRename,
+  onDelete,
+  isDeleting,
+  isSelected = false,
+  onToggleSelect,
+}: FileRowProps) {
   const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
   const Icon = FileIconMap[ext] || File;
 
-  const ThumbnailIcon = () => (
-    <Image
-      src={file.thumbnailUrl!}
-      alt={file.fileName}
-      width={32}
-      height={32}
-      className="size-8 rounded object-cover border border-border/60"
-    />
+  const ItemIcon = () => (
+    <div
+      className="size-8 flex items-center justify-center relative select-none shrink-0"
+      onClick={(e) => {
+        if (onToggleSelect) {
+          e.stopPropagation();
+          onToggleSelect(file.id, e.shiftKey);
+        }
+      }}
+    >
+      {/* Checkbox (visible on hover or when selected) */}
+      <div
+        className={cn(
+          "absolute inset-0 flex items-center justify-center transition-opacity z-10",
+          isSelected
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 group-hover/file-item:opacity-100 pointer-events-none group-hover/file-item:pointer-events-auto"
+        )}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelect?.(file.id, false)}
+          aria-label={`Select ${file.fileName}`}
+          className="size-4.5 bg-background shadow-xs"
+        />
+      </div>
+
+      {/* Thumbnail or File Icon (hidden when selected or on hover) */}
+      <div
+        className={cn(
+          "flex items-center justify-center transition-opacity",
+          isSelected ? "opacity-0" : "group-hover/file-item:opacity-0"
+        )}
+      >
+        {file.thumbnailUrl ? (
+          <Image
+            src={file.thumbnailUrl}
+            alt={file.fileName}
+            width={32}
+            height={32}
+            className="size-8 rounded object-cover border border-border/60"
+          />
+        ) : (
+          <Icon className="size-5 text-muted-foreground" />
+        )}
+      </div>
+    </div>
   );
 
   return (
     <AnimateFileItem
-      icon={file.thumbnailUrl ? ThumbnailIcon : Icon}
-      className="w-full"
+      icon={ItemIcon}
+      className={cn("w-full transition-colors cursor-pointer", isSelected && "bg-muted/50 rounded-lg")}
     >
-      <div className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3">
+      <div
+        className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3 cursor-pointer select-none"
+        onClick={(e) => {
+          if (onToggleSelect) {
+            onToggleSelect(file.id, e.shiftKey);
+          }
+        }}
+      >
         <div className="space-y-0.5 min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground leading-snug" title={file.fileName}>{file.fileName}</p>
           <p className="text-xs text-muted-foreground leading-normal">
@@ -49,7 +107,10 @@ export function FileRow({ file, onDownload, onRename, onDelete, isDeleting }: Fi
           </p>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div
+          className="flex items-center gap-1 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Tooltip>
             <TooltipTrigger
               render={

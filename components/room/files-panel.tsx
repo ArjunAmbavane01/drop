@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   deleteFileAction,
@@ -12,6 +13,20 @@ import {
 import type { RoomFile } from "@/types/rooms";
 import { Files } from "@/components/animate-ui/components/radix/files";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useFileUpload } from "./files/use-file-upload";
 import { groupFilesAndFolders } from "./files/file-tree-utils";
 import { UploadDropzone } from "./files/upload-dropzone";
@@ -29,6 +44,8 @@ interface FilesPanelProps {
   onFileDelete: (fileId: string) => void;
   onFolderRename: (uploadId: string, name: string) => void;
   onFolderDelete: (uploadId: string) => void;
+  onBulkDelete?: (deletedFileIds: string[], deletedFolderIds: string[]) => void;
+  onRestoreFiles?: (files: RoomFile[]) => void;
 }
 
 export function FilesPanel({
@@ -38,6 +55,8 @@ export function FilesPanel({
   onFileDelete,
   onFolderRename,
   onFolderDelete,
+  onBulkDelete,
+  onRestoreFiles,
 }: FilesPanelProps) {
   const [renameTarget, setRenameTarget] = useState<RoomFile | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -47,6 +66,11 @@ export function FilesPanel({
 
   const [deletingFileIds, setDeletingFileIds] = useState<Set<string>>(new Set());
   const [deletingFolderIds, setDeletingFolderIds] = useState<Set<string>>(new Set());
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   const {
     uploads,
@@ -63,6 +87,105 @@ export function FilesPanel({
   } = useFileUpload(roomId);
 
   const groupedItems = useMemo(() => groupFilesAndFolders(files), [files]);
+
+  const topLevelIds = useMemo(
+    () => groupedItems.map((item) => (item.type === "file" ? item.file.id : item.uploadId)),
+    [groupedItems]
+  );
+
+  const isAllSelected =
+    topLevelIds.length > 0 && topLevelIds.every((id) => selectedIds.has(id));
+  const isSomeSelected = selectedIds.size > 0 && !isAllSelected;
+
+  function handleToggleSelectAll() {
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+      setLastSelectedId(null);
+    } else {
+      setSelectedIds(new Set(topLevelIds));
+    }
+  }
+
+  function handleToggleSelect(id: string, isShift: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (
+        isShift &&
+        lastSelectedId &&
+        topLevelIds.includes(lastSelectedId) &&
+        topLevelIds.includes(id)
+      ) {
+        const fromIndex = topLevelIds.indexOf(lastSelectedId);
+        const toIndex = topLevelIds.indexOf(id);
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+        const rangeIds = topLevelIds.slice(start, end + 1);
+
+        const shouldSelect = !prev.has(id);
+        for (const rId of rangeIds) {
+          if (shouldSelect) {
+            next.add(rId);
+          } else {
+            next.delete(rId);
+          }
+        }
+      } else {
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+    setLastSelectedId(id);
+  }
+
+  async function handleBulkDeleteConfirm() {
+    if (selectedIds.size === 0 || isBulkDeleting) return;
+
+    setIsBulkDeleting(true);
+    const backupFiles = [...files];
+    const backupSelected = new Set(selectedIds);
+
+    const folderUploadIds = Array.from(selectedIds).filter((id) =>
+      groupedItems.some((item) => item.type === "folder" && item.uploadId === id)
+    );
+    const folderSet = new Set(folderUploadIds);
+    const fileIds = Array.from(selectedIds).filter((id) =>
+      files.some((f) => f.id === id && (!f.uploadId || !folderSet.has(f.uploadId)))
+    );
+
+    // Optimistically update UI
+    if (onBulkDelete) {
+      onBulkDelete(fileIds, folderUploadIds);
+    } else {
+      for (const fId of fileIds) onFileDelete(fId);
+      for (const uId of folderUploadIds) onFolderDelete(uId);
+    }
+
+    setSelectedIds(new Set());
+    setLastSelectedId(null);
+    setIsConfirmOpen(false);
+
+    try {
+      const deletePromises = [
+        ...fileIds.map((id) => deleteFileAction(id)),
+        ...folderUploadIds.map((id) => deleteFolderAction(id)),
+      ];
+      await Promise.all(deletePromises);
+      toast.success(`Deleted ${backupSelected.size} ${backupSelected.size === 1 ? "item" : "items"}.`);
+    } catch (error) {
+      // Revert optimistic update on error
+      if (onRestoreFiles) {
+        onRestoreFiles(backupFiles);
+      }
+      setSelectedIds(backupSelected);
+      toast.error(error instanceof Error ? error.message : "Failed to delete selected items.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }
 
   async function handleDownload(fileId: string) {
     try {
@@ -120,6 +243,11 @@ export function FilesPanel({
 
   async function handleDelete(fileId: string) {
     setDeletingFileIds((prev) => new Set(prev).add(fileId));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(fileId);
+      return next;
+    });
     try {
       await deleteFileAction(fileId);
       onFileDelete(fileId);
@@ -137,6 +265,11 @@ export function FilesPanel({
 
   async function handleDeleteFolder(uploadId: string) {
     setDeletingFolderIds((prev) => new Set(prev).add(uploadId));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(uploadId);
+      return next;
+    });
     try {
       await deleteFolderAction(uploadId);
       onFolderDelete(uploadId);
@@ -177,9 +310,70 @@ export function FilesPanel({
 
       {/* Uploaded Files List */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 select-none shrink-0">
-          Files ({groupedItems.length})
-        </h3>
+        <div className="flex items-center justify-between mb-2 select-none shrink-0 min-h-7">
+          <div className="flex items-center gap-2">
+            {groupedItems.length > 0 && (
+              <Checkbox
+                checked={isAllSelected}
+                indeterminate={isSomeSelected}
+                onCheckedChange={handleToggleSelectAll}
+                aria-label="Select all files"
+                className="size-4 cursor-pointer"
+              />
+            )}
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Files ({groupedItems.length})
+            </h3>
+            {selectedIds.size > 0 && (
+              <span className="text-xs text-primary font-medium">
+                ({selectedIds.size} selected)
+              </span>
+            )}
+          </div>
+
+          {selectedIds.size > 0 && (
+            <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+              <AlertDialogTrigger
+                render={
+                  <Button
+                    variant="destructive"
+                    size="xs"
+                    disabled={isBulkDeleting}
+                    className="gap-1.5 text-xs font-medium cursor-pointer"
+                  >
+                    {isBulkDeleting ? (
+                      <Spinner className="size-3.5" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    <span>Delete ({selectedIds.size})</span>
+                  </Button>
+                }
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Delete {selectedIds.size} selected {selectedIds.size === 1 ? "item" : "items"}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete {selectedIds.size} selected {selectedIds.size === 1 ? "item" : "files and folders"}. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkDeleteConfirm}
+                    variant="destructive"
+                    disabled={isBulkDeleting}
+                  >
+                    {isBulkDeleting ? "Deleting..." : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? "item" : "items"}`}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+
         {groupedItems.length === 0 ? (
           <EmptyFiles />
         ) : (
@@ -188,43 +382,51 @@ export function FilesPanel({
               <div className="pt-1 pb-3 pr-2 space-y-1">
                 <Files className="w-full p-0 bg-transparent space-y-1 border-none shadow-none">
                   {groupedItems.map((item) => {
-                  if (item.type === "file") {
+                    if (item.type === "file") {
+                      const isSelected = selectedIds.has(item.file.id);
+                      return (
+                        <FileRow
+                          key={item.file.id}
+                          file={item.file}
+                          onDownload={handleDownload}
+                          onRename={(file) => {
+                            setRenameTarget(file);
+                            setRenameValue(file.fileName);
+                          }}
+                          onDelete={handleDelete}
+                          isDeleting={deletingFileIds.has(item.file.id)}
+                          isSelected={isSelected}
+                          onToggleSelect={handleToggleSelect}
+                        />
+                      );
+                    }
+
+                    const isSelected = selectedIds.has(item.uploadId);
                     return (
-                      <FileRow
-                        key={item.file.id}
-                        file={item.file}
-                        onDownload={handleDownload}
-                        onRename={(file) => {
+                      <FolderRow
+                        key={item.uploadId}
+                        folder={item}
+                        onDownloadFolder={handleDownloadFolder}
+                        onRenameFolder={(folder) => {
+                          setRenameFolderTarget(folder);
+                          setRenameFolderValue(folder.name);
+                        }}
+                        onDeleteFolder={handleDeleteFolder}
+                        onDownloadFile={handleDownload}
+                        onRenameFile={(file) => {
                           setRenameTarget(file);
                           setRenameValue(file.fileName);
                         }}
-                        onDelete={handleDelete}
-                        isDeleting={deletingFileIds.has(item.file.id)}
+                        onDeleteFile={handleDelete}
+                        isDeleting={deletingFolderIds.has(item.uploadId)}
+                        deletingFileIds={deletingFileIds}
+                        isSelected={isSelected}
+                        onToggleSelect={handleToggleSelect}
+                        selectedIds={selectedIds}
+                        onToggleFileSelect={handleToggleSelect}
                       />
                     );
-                  }
-
-                  return (
-                    <FolderRow
-                      key={item.uploadId}
-                      folder={item}
-                      onDownloadFolder={handleDownloadFolder}
-                      onRenameFolder={(folder) => {
-                        setRenameFolderTarget(folder);
-                        setRenameFolderValue(folder.name);
-                      }}
-                      onDeleteFolder={handleDeleteFolder}
-                      onDownloadFile={handleDownload}
-                      onRenameFile={(file) => {
-                        setRenameTarget(file);
-                        setRenameValue(file.fileName);
-                      }}
-                      onDeleteFile={handleDelete}
-                      isDeleting={deletingFolderIds.has(item.uploadId)}
-                      deletingFileIds={deletingFileIds}
-                    />
-                  );
-                })}
+                  })}
                 </Files>
               </div>
             </ScrollArea>
