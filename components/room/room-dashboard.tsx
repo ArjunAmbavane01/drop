@@ -41,16 +41,7 @@ export function RoomDashboard({
   const localRevisionRef = useRef(0);
   const remoteRevisionRef = useRef(0);
 
-  useEffect(() => {
-    setSnapshot(initialSnapshot);
-    setTextValue(initialSnapshot.text.value);
-    textValueRef.current = initialSnapshot.text.value;
-    lastRemoteTextRef.current = initialSnapshot.text.value;
-    localRevisionRef.current = 0;
-    remoteRevisionRef.current = 0;
-    saveSequenceRef.current = 0;
-    lastAckedSaveRef.current = 0;
-  }, [initialSnapshot.room.id]);
+
 
   const persistText = useDebouncedCallback(async (nextText: string, revision: number) => {
     const saveId = ++saveSequenceRef.current;

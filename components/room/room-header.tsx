@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowLeft, Trash2, DoorOpen } from "lucide-react";
 
 import type { RoomMember, RoomSnapshot } from "@/types/rooms";

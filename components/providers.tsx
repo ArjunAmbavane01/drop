@@ -1,19 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 
-const emptySubscribe = () => () => {};
-
-function useMounted() {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false,
-  );
-}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const scriptProps =

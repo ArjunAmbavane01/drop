@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import {
-  createUploadUrlAction,
-  completeUploadAction,
+  createUploadUrlsAction,
+  completeUploadsAction,
 } from "@/server/rooms/actions";
+import type { CompleteUploadInput } from "@/lib/validators";
 import type { UploadGroup, UploadState } from "./types";
 import { groupFilesForUpload } from "./file-tree-utils";
 
@@ -65,19 +66,28 @@ export function useFileUpload(roomId: string) {
     const fileProgresses = new Map<string, number>();
 
     try {
+      // 1. Get pre-signed upload URLs in batch
+      const signedUrls = await createUploadUrlsAction(
+        roomId,
+        group.files.map((fileInfo) => ({
+          fileName: fileInfo.relativePath,
+          contentType: fileInfo.file.type || "application/octet-stream",
+          sizeBytes: fileInfo.file.size,
+          uploadId: group.type === "folder" ? group.id : undefined,
+        })),
+      );
+
+      const successfulUploads: CompleteUploadInput[] = [];
+
+      // 2. Direct upload to R2 with XMLHttpRequest progress reporting in parallel
       await Promise.all(
         group.files.map(async (fileInfo) => {
           const { file, relativePath } = fileInfo;
+          const signed = signedUrls.find((s) => s.fileName === relativePath);
+          if (!signed) {
+            throw new Error(`Failed to generate upload URL for: ${relativePath}`);
+          }
 
-          // 1. Pre-signed upload URL from Server Action
-          const signed = await createUploadUrlAction(roomId, {
-            fileName: relativePath,
-            contentType: file.type || "application/octet-stream",
-            sizeBytes: file.size,
-            uploadId: group.type === "folder" ? group.id : undefined,
-          });
-
-          // 2. Direct upload to R2 with XMLHttpRequest progress reporting
           await new Promise<void>((resolve, reject) => {
             const request = new XMLHttpRequest();
             activeRequests.push(request);
@@ -118,8 +128,8 @@ export function useFileUpload(roomId: string) {
             request.send(file);
           });
 
-          // 3. Complete the upload record in the database
-          await completeUploadAction(roomId, {
+          // Upload was successful, add to database complete queue
+          successfulUploads.push({
             objectKey: signed.objectKey,
             fileName: relativePath,
             contentType: file.type || "application/octet-stream",
@@ -129,6 +139,11 @@ export function useFileUpload(roomId: string) {
           });
         }),
       );
+
+      // 3. Complete all successfully uploaded files in batch
+      if (successfulUploads.length > 0) {
+        await completeUploadsAction(roomId, successfulUploads);
+      }
 
       // Mark upload as complete
       setUploads((prev) =>

@@ -58,6 +58,24 @@ export async function removeObject(objectKey: string) {
   );
 }
 
+export async function removeObjects(objectKeys: string[]) {
+  if (objectKeys.length === 0) return;
+  const r2 = getR2();
+  const chunkSize = 1000;
+  for (let i = 0; i < objectKeys.length; i += chunkSize) {
+    const chunk = objectKeys.slice(i, i + chunkSize);
+    await r2.send(
+      new DeleteObjectsCommand({
+        Bucket: env.r2BucketName,
+        Delete: {
+          Objects: chunk.map((key) => ({ Key: key })),
+          Quiet: true,
+        },
+      }),
+    );
+  }
+}
+
 export async function removeObjectsWithPrefix(prefix: string) {
   const r2 = getR2();
   let continuationToken: string | undefined = undefined;

@@ -11,12 +11,6 @@ function createAuth() {
     appName: "Drop",
     secret: env.betterAuthSecret,
     baseURL: env.betterAuthUrl,
-    trustedOrigins: [
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      "http://192.168.1.7:3000",
-      "http://10.201.49.168:3000",
-    ],
     database: drizzleAdapter(getDb(), {
       provider: "pg",
       schema: {

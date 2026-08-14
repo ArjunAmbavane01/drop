@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
@@ -37,6 +37,7 @@ import {
   createSignedDownloadUrl,
   getObjectMetadata,
   removeObject,
+  removeObjects,
   removeObjectsWithPrefix,
 } from "@/server/r2/files";
 import { env } from "@/lib/env";
@@ -160,7 +161,7 @@ export async function deleteRoomAction(roomId: string) {
     .from(uploadedFiles)
     .where(eq(uploadedFiles.roomId, roomId));
 
-  await Promise.all(roomFiles.map((file) => removeObject(file.objectKey)));
+  await removeObjects(roomFiles.map((file) => file.objectKey));
 
   await getDb().delete(rooms).where(eq(rooms.id, roomId));
 
@@ -187,9 +188,7 @@ export async function deleteAccountAction() {
       .from(uploadedFiles)
       .where(inArray(uploadedFiles.roomId, ownedRoomIds));
 
-    await Promise.all(
-      filesToDelete.map((file) => removeObject(file.objectKey))
-    );
+    await removeObjects(filesToDelete.map((file) => file.objectKey));
   }
 
   // 3. Notify rooms the user joined (that they do not own) that the user left
@@ -266,11 +265,11 @@ export async function clearRoomAction(roomId: string) {
   await requireRoomOwner(roomId, session.user.id);
 
   const roomFiles = await getDb()
-    .select()
+    .select({ objectKey: uploadedFiles.objectKey })
     .from(uploadedFiles)
     .where(eq(uploadedFiles.roomId, roomId));
 
-  await Promise.all(roomFiles.map((file) => removeObject(file.objectKey)));
+  await removeObjects(roomFiles.map((file) => file.objectKey));
 
   await getDb().delete(uploadedFiles).where(eq(uploadedFiles.roomId, roomId));
   await getDb().delete(uploads).where(eq(uploads.roomId, roomId));
@@ -372,6 +371,42 @@ export async function deleteFileAction(fileId: string) {
   return { success: true };
 }
 
+export async function deleteFilesAction(fileIds: string[]) {
+  if (fileIds.length === 0) return { success: true };
+  const session = await requireRequestSession();
+
+  const files = await getDb()
+    .select()
+    .from(uploadedFiles)
+    .where(inArray(uploadedFiles.id, fileIds));
+
+  if (files.length === 0) {
+    return { success: true };
+  }
+
+  // Authorize for all unique rooms
+  const roomIds = Array.from(new Set(files.map((f) => f.roomId)));
+  for (const roomId of roomIds) {
+    await requireRoomAccess(roomId, session.user.id);
+  }
+
+  // Delete from R2
+  const objectKeys = files.map((f) => f.objectKey);
+  await removeObjects(objectKeys);
+
+  // Delete from DB
+  await getDb()
+    .delete(uploadedFiles)
+    .where(inArray(uploadedFiles.id, files.map((f) => f.id)));
+
+  // Emit room events
+  for (const file of files) {
+    await createRoomEvent(file.roomId, "file.deleted", { fileId: file.id });
+  }
+
+  return { success: true };
+}
+
 export async function renameFolderAction(
   uploadId: string,
   input: RenameFolderInput
@@ -425,6 +460,44 @@ export async function deleteFolderAction(uploadId: string) {
   await getDb().delete(uploads).where(eq(uploads.id, uploadId));
 
   await createRoomEvent(upload.roomId, "folder.deleted", { uploadId });
+
+  return { success: true };
+}
+
+export async function deleteFoldersAction(uploadIds: string[]) {
+  if (uploadIds.length === 0) return { success: true };
+  const session = await requireRequestSession();
+
+  const folderUploads = await getDb()
+    .select()
+    .from(uploads)
+    .where(inArray(uploads.id, uploadIds));
+
+  if (folderUploads.length === 0) {
+    return { success: true };
+  }
+
+  // Authorize for all unique rooms
+  const roomIds = Array.from(new Set(folderUploads.map((u) => u.roomId)));
+  for (const roomId of roomIds) {
+    await requireRoomAccess(roomId, session.user.id);
+  }
+
+  // Remove files for all folders
+  for (const upload of folderUploads) {
+    const prefix = `${upload.roomId}/${upload.id}/`;
+    await removeObjectsWithPrefix(prefix);
+  }
+
+  // Delete folders from DB
+  await getDb()
+    .delete(uploads)
+    .where(inArray(uploads.id, folderUploads.map((u) => u.id)));
+
+  // Emit room events
+  for (const upload of folderUploads) {
+    await createRoomEvent(upload.roomId, "folder.deleted", { uploadId: upload.id });
+  }
 
   return { success: true };
 }
@@ -515,6 +588,116 @@ export async function completeUploadAction(
   });
 
   return { fileId: file.id };
+}
+
+export async function createUploadUrlsAction(
+  roomId: string,
+  inputs: CreateUploadInput[]
+) {
+  if (inputs.length === 0) return [];
+  const session = await requireRequestSession();
+  await requireRoomAccess(roomId, session.user.id);
+
+  const results = [];
+  for (const input of inputs) {
+    const validatedInput = createUploadSchema.parse(input);
+    const objectKey = validatedInput.uploadId
+      ? `${roomId}/${validatedInput.uploadId}/${validatedInput.fileName}`
+      : `${roomId}/${crypto.randomUUID()}-${validatedInput.fileName}`;
+
+    const uploadUrl = await createSignedUploadUrl(
+      objectKey,
+      validatedInput.contentType
+    );
+    results.push({ objectKey, uploadUrl, fileName: validatedInput.fileName });
+  }
+
+  return results;
+}
+
+export async function completeUploadsAction(
+  roomId: string,
+  inputs: CompleteUploadInput[]
+) {
+  if (inputs.length === 0) return { success: true };
+  const session = await requireRequestSession();
+  await requireRoomAccess(roomId, session.user.id);
+
+  const uploadIdMap = new Map<string, string>();
+  for (const input of inputs) {
+    if (input.uploadId && input.folderName) {
+      uploadIdMap.set(input.uploadId, input.folderName);
+    }
+  }
+
+  for (const [uploadId, folderName] of uploadIdMap.entries()) {
+    const [existingUpload] = await getDb()
+      .select()
+      .from(uploads)
+      .where(eq(uploads.id, uploadId))
+      .limit(1);
+
+    if (!existingUpload) {
+      await getDb().insert(uploads).values({
+        id: uploadId,
+        roomId,
+        uploaderId: session.user.id,
+        name: folderName,
+      });
+    }
+  }
+
+  const completed = [];
+  for (const input of inputs) {
+    const validatedInput = completeUploadSchema.parse(input);
+    try {
+      const objectMetadata = await getObjectMetadata(validatedInput.objectKey);
+      if (objectMetadata.sizeBytes !== validatedInput.sizeBytes) {
+        continue;
+      }
+
+      const [file] = await getDb()
+        .insert(uploadedFiles)
+        .values({
+          roomId,
+          uploaderId: session.user.id,
+          uploadId: validatedInput.uploadId || null,
+          objectKey: validatedInput.objectKey,
+          fileName: validatedInput.fileName,
+          contentType: objectMetadata.contentType ?? validatedInput.contentType,
+          sizeBytes: objectMetadata.sizeBytes,
+        })
+        .returning();
+
+      completed.push(file);
+
+      await createRoomEvent(roomId, "file.created", {
+        file: {
+          id: file.id,
+          fileName: file.fileName,
+          contentType: file.contentType,
+          sizeBytes: file.sizeBytes,
+          objectKey: file.objectKey,
+          uploadedAt: file.uploadedAt.toISOString(),
+          uploader: {
+            id: session.user.id,
+            name: session.user.name,
+          },
+          thumbnailUrl: file.contentType?.startsWith("image/")
+            ? `${env.r2PublicBaseUrl}/${file.objectKey}`
+            : null,
+          uploadId: file.uploadId,
+          uploadName: validatedInput.uploadId
+            ? validatedInput.folderName || "Untitled Folder"
+            : null,
+        },
+      });
+    } catch (err) {
+      console.error(`Failed to complete upload for key: ${validatedInput.objectKey}`, err);
+    }
+  }
+
+  return { success: true, count: completed.length };
 }
 
 export async function getFileDownloadUrlAction(fileId: string) {

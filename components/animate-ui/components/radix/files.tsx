@@ -57,7 +57,6 @@ type FolderTriggerProps = FileLabelPrimitiveProps & {
 function FolderTrigger({
   children,
   className,
-  gitStatus,
   icon,
   ...props
 }: FolderTriggerProps) {
@@ -106,7 +105,6 @@ function FileItem({
   icon: Icon = FileIcon,
   className,
   children,
-  gitStatus,
   ...props
 }: FileItemProps) {
   return (

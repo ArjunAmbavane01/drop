@@ -6,14 +6,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Field, FieldError } from "@/components/ui/field";
 import { createRoomSchema, type CreateRoomInput } from "@/lib/validators";
 import type { Room } from "@/types/rooms";

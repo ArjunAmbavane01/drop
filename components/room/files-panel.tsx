@@ -5,7 +5,9 @@ import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   deleteFileAction,
+  deleteFilesAction,
   deleteFolderAction,
+  deleteFoldersAction,
   getFileDownloadUrlAction,
   renameFileAction,
   renameFolderAction,
@@ -169,11 +171,10 @@ export function FilesPanel({
     setIsConfirmOpen(false);
 
     try {
-      const deletePromises = [
-        ...fileIds.map((id) => deleteFileAction(id)),
-        ...folderUploadIds.map((id) => deleteFolderAction(id)),
-      ];
-      await Promise.all(deletePromises);
+      await Promise.all([
+        fileIds.length > 0 ? deleteFilesAction(fileIds) : Promise.resolve(),
+        folderUploadIds.length > 0 ? deleteFoldersAction(folderUploadIds) : Promise.resolve(),
+      ]);
       toast.success(`Deleted ${backupSelected.size} ${backupSelected.size === 1 ? "item" : "items"}.`);
     } catch (error) {
       // Revert optimistic update on error

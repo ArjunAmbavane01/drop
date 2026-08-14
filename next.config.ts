@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { env } from "./lib/env";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -6,7 +7,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "pub-1356c9f4a3714922b9c36242abf9a91b.r2.dev",
+        hostname: env.r2PublicBaseUrl,
       },
     ],
   },
