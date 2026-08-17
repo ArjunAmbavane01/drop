@@ -12,6 +12,20 @@ import type { Readable } from "stream";
 import { env } from "@/lib/env";
 import { getR2 } from "@/server/r2";
 
+function encodeR2ObjectKey(objectKey: string) {
+  return objectKey
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+export function getR2PublicObjectUrl(objectKey: string) {
+  const baseUrl = new URL(env.r2PublicBaseUrl);
+  const normalizedBasePath = baseUrl.pathname.replace(/\/$/, "");
+  baseUrl.pathname = `${normalizedBasePath}/${encodeR2ObjectKey(objectKey)}`;
+  return baseUrl.toString();
+}
+
 export async function createSignedUploadUrl(objectKey: string, contentType: string) {
   const command = new PutObjectCommand({
     Bucket: env.r2BucketName,
@@ -142,4 +156,3 @@ export async function getObjectStream(objectKey: string): Promise<Readable> {
   }
   return response.Body as Readable;
 }
-

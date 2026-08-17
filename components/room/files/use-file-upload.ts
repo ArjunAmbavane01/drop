@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import {
-  createUploadUrlsAction,
-  completeUploadsAction,
-} from "@/server/rooms/actions";
+import { completeUploadsAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
 import type { UploadGroup, UploadState } from "./types";
 import { groupFilesForUpload } from "./file-tree-utils";
@@ -66,29 +63,14 @@ export function useFileUpload(roomId: string) {
     const fileProgresses = new Map<string, number>();
 
     try {
-      // 1. Get pre-signed upload URLs in batch
-      const signedUrls = await createUploadUrlsAction(
-        roomId,
-        group.files.map((fileInfo) => ({
-          fileName: fileInfo.relativePath,
-          contentType: fileInfo.file.type || "application/octet-stream",
-          sizeBytes: fileInfo.file.size,
-          uploadId: group.type === "folder" ? group.id : undefined,
-        })),
-      );
-
       const successfulUploads: CompleteUploadInput[] = [];
 
-      // 2. Direct upload to R2 with XMLHttpRequest progress reporting in parallel
+      // Stream uploads through the backend so the browser never needs direct R2 access.
       await Promise.all(
         group.files.map(async (fileInfo) => {
           const { file, relativePath } = fileInfo;
-          const signed = signedUrls.find((s) => s.fileName === relativePath);
-          if (!signed) {
-            throw new Error(`Failed to generate upload URL for: ${relativePath}`);
-          }
 
-          await new Promise<void>((resolve, reject) => {
+          const objectKey = await new Promise<string>((resolve, reject) => {
             const request = new XMLHttpRequest();
             activeRequests.push(request);
 
@@ -115,22 +97,41 @@ export function useFileUpload(roomId: string) {
             request.addEventListener("load", () => {
               if (request.status >= 200 && request.status < 300) {
                 fileProgresses.set(relativePath, file.size);
-                resolve();
+                try {
+                  const response = JSON.parse(request.responseText || "{}");
+                  if (typeof response?.objectKey === "string" && response.objectKey.length > 0) {
+                    resolve(response.objectKey);
+                    return;
+                  }
+                  reject(new Error("Upload completed without an object key."));
+                } catch {
+                  reject(new Error("Upload completed without a valid response."));
+                }
               } else {
-                reject(new Error(`Upload failed with status ${request.status}`));
+                try {
+                  const response = JSON.parse(request.responseText || "{}");
+                  reject(new Error(response.error || `Upload failed with status ${request.status}`));
+                } catch {
+                  reject(new Error(`Upload failed with status ${request.status}`));
+                }
               }
             });
 
             request.addEventListener("error", () => reject(new Error("Network error during upload.")));
             request.addEventListener("abort", () => reject(new Error("Upload cancelled.")));
-            request.open("PUT", signed.uploadUrl);
+            request.open("POST", `/api/rooms/${roomId}/uploads`);
+            request.setRequestHeader("X-File-Name", encodeURIComponent(relativePath));
             request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+            request.setRequestHeader("X-File-Size", String(file.size));
+            if (group.type === "folder") {
+              request.setRequestHeader("X-Upload-Id", group.id);
+            }
             request.send(file);
           });
 
           // Upload was successful, add to database complete queue
           successfulUploads.push({
-            objectKey: signed.objectKey,
+            objectKey,
             fileName: relativePath,
             contentType: file.type || "application/octet-stream",
             sizeBytes: file.size,

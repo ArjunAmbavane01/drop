@@ -20,27 +20,54 @@ export function useRoomEvents(
 
   useEffect(() => {
     lastEventIdRef.current = 0;
-    const eventSource = new EventSource(
-      `/api/rooms/${roomId}/events?lastEventId=0`,
-    );
+    let eventSource: EventSource | null = null;
+    let reconnectTimeoutId: NodeJS.Timeout | null = null;
+    let isClosed = false;
 
-    eventSource.onmessage = (message) => {
-      const data = JSON.parse(message.data);
-      if (data.type === "presence") {
-        onPresenceRef.current?.(data.userIds);
-      } else {
-        const event = data as RoomEvent;
-        lastEventIdRef.current = event.id;
-        onEventRef.current(event);
+    function connect() {
+      if (isClosed) return;
+
+      if (eventSource) {
+        eventSource.close();
       }
-    };
 
-    eventSource.onerror = () => {
-      eventSource.close();
-    };
+      eventSource = new EventSource(
+        `/api/rooms/${roomId}/events?lastEventId=${lastEventIdRef.current}`,
+      );
+
+      eventSource.onmessage = (message) => {
+        try {
+          const data = JSON.parse(message.data);
+          if (data.type === "presence") {
+            onPresenceRef.current?.(data.userIds);
+          } else {
+            const event = data as RoomEvent;
+            lastEventIdRef.current = event.id;
+            onEventRef.current(event);
+          }
+        } catch (err) {
+          console.error("Error parsing room event data:", err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        if (isClosed) return;
+        eventSource?.close();
+        // Reconnect after 3 seconds on error / timeout
+        reconnectTimeoutId = setTimeout(connect, 3000);
+      };
+    }
+
+    connect();
 
     return () => {
-      eventSource.close();
+      isClosed = true;
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (reconnectTimeoutId) {
+        clearTimeout(reconnectTimeoutId);
+      }
     };
   }, [roomId]);
 }

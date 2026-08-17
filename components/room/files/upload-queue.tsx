@@ -3,7 +3,6 @@
 import { RefreshCw, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +25,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none shrink-0">
             Uploading ({uploads.length})
           </h3>
-          <ScrollArea className="max-h-40 sm:max-h-48 w-full">
+          <div className="max-h-40 sm:max-h-48 w-full overflow-y-auto">
             <div className="space-y-1.5 pr-2 pb-0.5">
               {uploads.map((upload) => (
                 <motion.div
@@ -38,7 +37,6 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                   transition={{ duration: 0.2 }}
                   className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2 text-xs"
                 >
-                  {/* Filename */}
                   <p
                     className="truncate font-medium text-foreground min-w-0 max-w-[140px] sm:max-w-[200px] md:max-w-[240px] shrink-0"
                     title={upload.name}
@@ -46,7 +44,6 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                     {upload.name}
                   </p>
 
-                  {/* Progress bar or error message */}
                   <div className="flex-1 min-w-[60px]">
                     {upload.status === "error" ? (
                       <p className="text-[11px] text-destructive truncate">
@@ -57,7 +54,6 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                     )}
                   </div>
 
-                  {/* Percentage / Status */}
                   <span className="text-muted-foreground tabular-nums shrink-0 text-right min-w-[36px]">
                     {upload.status === "complete"
                       ? "100%"
@@ -66,7 +62,6 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                         : `${upload.progress}%`}
                   </span>
 
-                  {/* Cancel & Retry action buttons */}
                   <div className="flex items-center gap-1 shrink-0">
                     {upload.status === "error" && (
                       <Tooltip>
@@ -105,7 +100,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                 </motion.div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       )}
     </AnimatePresence>

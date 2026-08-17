@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 
 import { getDb } from "@/db";
 import { uploads, uploadedFiles, roomMemberships, rooms, roomTexts, users } from "@/db/schema";
-import { env } from "@/lib/env";
 import type { RoomSnapshot } from "@/types/rooms";
+import { getR2PublicObjectUrl } from "@/server/r2/files";
 
 export async function getInitialRoomForUser(userId: string) {
   const [membership] = await getDb()
@@ -105,7 +105,7 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
         name: file.uploaderName ?? "Former member",
       },
       thumbnailUrl: file.contentType?.startsWith("image/")
-        ? `${env.r2PublicBaseUrl}/${file.objectKey}`
+        ? getR2PublicObjectUrl(file.objectKey)
         : null,
       uploadId: file.uploadId,
       uploadName: file.uploadName,

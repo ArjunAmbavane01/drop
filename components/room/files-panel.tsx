@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   deleteFileAction,
@@ -11,6 +11,7 @@ import {
   getFileDownloadUrlAction,
   renameFileAction,
   renameFolderAction,
+  refreshRoomFilesAction,
 } from "@/server/rooms/actions";
 import type { RoomFile } from "@/types/rooms";
 import { Files } from "@/components/animate-ui/components/radix/files";
@@ -42,6 +43,7 @@ import type { FolderItem } from "./files/types";
 interface FilesPanelProps {
   roomId: string;
   files: RoomFile[];
+  onFilesRefresh: (files: RoomFile[]) => void;
   onFileRename: (fileId: string, fileName: string) => void;
   onFileDelete: (fileId: string) => void;
   onFolderRename: (uploadId: string, name: string) => void;
@@ -53,6 +55,7 @@ interface FilesPanelProps {
 export function FilesPanel({
   roomId,
   files,
+  onFilesRefresh,
   onFileRename,
   onFileDelete,
   onFolderRename,
@@ -68,6 +71,7 @@ export function FilesPanel({
 
   const [deletingFileIds, setDeletingFileIds] = useState<Set<string>>(new Set());
   const [deletingFolderIds, setDeletingFolderIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
@@ -89,6 +93,20 @@ export function FilesPanel({
   } = useFileUpload(roomId);
 
   const groupedItems = useMemo(() => groupFilesAndFolders(files), [files]);
+  const currentItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of groupedItems) {
+      if (item.type === "file") {
+        ids.add(item.file.id);
+      } else {
+        ids.add(item.uploadId);
+        for (const file of item.files) {
+          ids.add(file.id);
+        }
+      }
+    }
+    return ids;
+  }, [groupedItems]);
 
   const topLevelIds = useMemo(
     () => groupedItems.map((item) => (item.type === "file" ? item.file.id : item.uploadId)),
@@ -98,6 +116,25 @@ export function FilesPanel({
   const isAllSelected =
     topLevelIds.length > 0 && topLevelIds.every((id) => selectedIds.has(id));
   const isSomeSelected = selectedIds.size > 0 && !isAllSelected;
+
+  useEffect(() => {
+    setSelectedIds((previous) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of previous) {
+        if (currentItemIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : previous;
+    });
+
+    setLastSelectedId((previous) =>
+      previous && currentItemIds.has(previous) ? previous : null,
+    );
+  }, [currentItemIds]);
 
   function handleToggleSelectAll() {
     if (isAllSelected) {
@@ -213,6 +250,21 @@ export function FilesPanel({
       document.body.removeChild(link);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to download folder.");
+    }
+  }
+
+  async function handleRefreshFiles() {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      const { files: refreshedFiles } = await refreshRoomFilesAction(roomId);
+      onFilesRefresh(refreshedFiles);
+      toast.success("Files refreshed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to refresh files.");
+    } finally {
+      setIsRefreshing(false);
     }
   }
 
@@ -373,6 +425,22 @@ export function FilesPanel({
               </AlertDialogContent>
             </AlertDialog>
           )}
+
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={handleRefreshFiles}
+            disabled={isRefreshing}
+            className="gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground"
+            title="Refresh files"
+          >
+            {isRefreshing ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <RefreshCw className="size-3.5" />
+            )}
+            <span>Refresh</span>
+          </Button>
         </div>
 
         {groupedItems.length === 0 ? (

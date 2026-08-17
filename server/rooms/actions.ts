@@ -22,25 +22,23 @@ import {
   updateTextSchema,
   renameFileSchema,
   renameFolderSchema,
-  createUploadSchema,
   completeUploadSchema,
   type CreateRoomInput,
   type JoinRoomInput,
   type UpdateTextInput,
   type RenameFileInput,
   type RenameFolderInput,
-  type CreateUploadInput,
   type CompleteUploadInput,
 } from "@/lib/validators";
 import {
-  createSignedUploadUrl,
   createSignedDownloadUrl,
   getObjectMetadata,
   removeObject,
   removeObjects,
   removeObjectsWithPrefix,
+  getR2PublicObjectUrl,
 } from "@/server/r2/files";
-import { env } from "@/lib/env";
+import { getRoomSnapshot } from "@/server/rooms/queries";
 
 export async function createRoomAction(input: CreateRoomInput) {
   const session = await requireRequestSession();
@@ -502,26 +500,6 @@ export async function deleteFoldersAction(uploadIds: string[]) {
   return { success: true };
 }
 
-export async function createUploadUrlAction(
-  roomId: string,
-  input: CreateUploadInput
-) {
-  const session = await requireRequestSession();
-  await requireRoomAccess(roomId, session.user.id);
-  const validatedInput = createUploadSchema.parse(input);
-
-  const objectKey = validatedInput.uploadId
-    ? `${roomId}/${validatedInput.uploadId}/${validatedInput.fileName}`
-    : `${roomId}/${crypto.randomUUID()}-${validatedInput.fileName}`;
-
-  const uploadUrl = await createSignedUploadUrl(
-    objectKey,
-    validatedInput.contentType
-  );
-
-  return { objectKey, uploadUrl };
-}
-
 export async function completeUploadAction(
   roomId: string,
   input: CompleteUploadInput
@@ -578,7 +556,7 @@ export async function completeUploadAction(
         name: session.user.name,
       },
       thumbnailUrl: file.contentType?.startsWith("image/")
-        ? `${env.r2PublicBaseUrl}/${file.objectKey}`
+        ? getR2PublicObjectUrl(file.objectKey)
         : null,
       uploadId: file.uploadId,
       uploadName: validatedInput.uploadId
@@ -588,31 +566,6 @@ export async function completeUploadAction(
   });
 
   return { fileId: file.id };
-}
-
-export async function createUploadUrlsAction(
-  roomId: string,
-  inputs: CreateUploadInput[]
-) {
-  if (inputs.length === 0) return [];
-  const session = await requireRequestSession();
-  await requireRoomAccess(roomId, session.user.id);
-
-  const results = [];
-  for (const input of inputs) {
-    const validatedInput = createUploadSchema.parse(input);
-    const objectKey = validatedInput.uploadId
-      ? `${roomId}/${validatedInput.uploadId}/${validatedInput.fileName}`
-      : `${roomId}/${crypto.randomUUID()}-${validatedInput.fileName}`;
-
-    const uploadUrl = await createSignedUploadUrl(
-      objectKey,
-      validatedInput.contentType
-    );
-    results.push({ objectKey, uploadUrl, fileName: validatedInput.fileName });
-  }
-
-  return results;
 }
 
 export async function completeUploadsAction(
@@ -684,7 +637,7 @@ export async function completeUploadsAction(
             name: session.user.name,
           },
           thumbnailUrl: file.contentType?.startsWith("image/")
-            ? `${env.r2PublicBaseUrl}/${file.objectKey}`
+            ? getR2PublicObjectUrl(file.objectKey)
             : null,
           uploadId: file.uploadId,
           uploadName: validatedInput.uploadId
@@ -698,6 +651,12 @@ export async function completeUploadsAction(
   }
 
   return { success: true, count: completed.length };
+}
+
+export async function refreshRoomFilesAction(roomId: string) {
+  const session = await requireRequestSession();
+  const snapshot = await getRoomSnapshot(roomId, session.user.id);
+  return { files: snapshot.files };
 }
 
 export async function getFileDownloadUrlAction(fileId: string) {

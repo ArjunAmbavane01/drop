@@ -326,6 +326,12 @@ export function RoomDashboard({
                   <FilesPanel
                     roomId={snapshot.room.id}
                     files={snapshot.files}
+                    onFilesRefresh={(files) =>
+                      setSnapshot((previous) => ({
+                        ...previous,
+                        files,
+                      }))
+                    }
                     onFileRename={(fileId, fileName) =>
                       setSnapshot((previous) => ({
                         ...previous,
