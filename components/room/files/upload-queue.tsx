@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/tooltip";
 import type { UploadState } from "./types";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 interface UploadQueueProps {
   uploads: UploadState[];
@@ -25,7 +27,12 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none shrink-0">
             Uploading ({uploads.length})
           </h3>
-          <div className="max-h-40 sm:max-h-48 w-full overflow-y-auto">
+          <ScrollArea
+            className={cn(
+              "max-h-40 sm:max-h-48 w-full",
+              uploads.length <= 3 && "[&_[data-slot=scroll-area-scrollbar]]:hidden"
+            )}
+          >
             <div className="space-y-1.5 pr-2 pb-0.5">
               {uploads.map((upload) => (
                 <motion.div
@@ -38,7 +45,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                   className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2 text-xs"
                 >
                   <p
-                    className="truncate font-medium text-foreground min-w-0 max-w-[140px] sm:max-w-[200px] md:max-w-[240px] shrink-0"
+                    className="font-medium text-foreground w-[140px] sm:w-[200px] md:w-[240px] shrink-0 truncate"
                     title={upload.name}
                   >
                     {upload.name}
@@ -100,7 +107,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                 </motion.div>
               ))}
             </div>
-          </div>
+          </ScrollArea>
         </div>
       )}
     </AnimatePresence>

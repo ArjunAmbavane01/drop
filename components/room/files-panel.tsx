@@ -384,63 +384,65 @@ export function FilesPanel({
             )}
           </div>
 
-          {selectedIds.size > 0 && (
-            <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-              <AlertDialogTrigger
-                render={
-                  <Button
-                    variant="destructive"
-                    size="xs"
-                    disabled={isBulkDeleting}
-                    className="gap-1.5 text-xs font-medium cursor-pointer"
-                  >
-                    {isBulkDeleting ? (
-                      <Spinner className="size-3.5" />
-                    ) : (
-                      <Trash2 className="size-3.5" />
-                    )}
-                    <span>Delete ({selectedIds.size})</span>
-                  </Button>
-                }
-              />
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Delete {selectedIds.size} selected {selectedIds.size === 1 ? "item" : "items"}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete {selectedIds.size} selected {selectedIds.size === 1 ? "item" : "files and folders"}. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleBulkDeleteConfirm}
-                    variant="destructive"
-                    disabled={isBulkDeleting}
-                  >
-                    {isBulkDeleting ? "Deleting..." : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? "item" : "items"}`}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleRefreshFiles}
-            disabled={isRefreshing}
-            className="gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground"
-            title="Refresh files"
-          >
-            {isRefreshing ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <RefreshCw className="size-3.5" />
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedIds.size > 0 && (
+              <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      variant="destructive"
+                      size="xs"
+                      disabled={isBulkDeleting}
+                      className="gap-1.5 text-xs font-medium cursor-pointer"
+                    >
+                      {isBulkDeleting ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                      <span>Delete ({selectedIds.size})</span>
+                    </Button>
+                  }
+                />
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Delete {selectedIds.size} selected {selectedIds.size === 1 ? "item" : "items"}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete {selectedIds.size} selected {selectedIds.size === 1 ? "item" : "files and folders"}. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleBulkDeleteConfirm}
+                      variant="destructive"
+                      disabled={isBulkDeleting}
+                    >
+                      {isBulkDeleting ? "Deleting..." : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? "item" : "items"}`}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
-            <span>Refresh</span>
-          </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleRefreshFiles}
+              disabled={isRefreshing}
+              className="gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground"
+              title="Refresh files"
+            >
+              {isRefreshing ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              <span>Refresh</span>
+            </Button>
+          </div>
         </div>
 
         {groupedItems.length === 0 ? (
