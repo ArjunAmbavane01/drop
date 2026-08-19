@@ -307,7 +307,7 @@ export function RoomDashboard({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.15, ease: "easeInOut" }}
-                  className="flex-1 flex flex-col"
+                  className="flex-1 flex flex-col min-h-0"
                 >
                   <QuickTextPanel
                     value={textValue}
@@ -321,7 +321,7 @@ export function RoomDashboard({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.15, ease: "easeInOut" }}
-                  className="flex-1 flex flex-col"
+                  className="flex-1 flex flex-col min-h-0"
                 >
                   <FilesPanel
                     roomId={snapshot.room.id}
