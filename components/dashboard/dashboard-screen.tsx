@@ -178,16 +178,16 @@ export function DashboardScreen({
 
   return (
     <div className="min-h-screen bg-background w-full">
-      <div className="flex flex-col mx-auto max-w-3xl w-full py-5 sm:py-8 px-3 sm:px-5">
+      <div className="flex flex-col mx-auto sm:max-w-3xl w-full p-3 sm:py-8 sm:px-5">
         {/* Header */}
-        <header className="flex items-center justify-between px-3">
+        <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <FolderOpen className="size-5" />
+            <div className="flex size-8 sm:size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <FolderOpen className="size-4 sm:size-5" />
             </div>
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Drop</h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Private cross-device transfer
               </p>
             </div>
@@ -208,7 +208,7 @@ export function DashboardScreen({
           isJoining={isJoining}
         />
 
-        <div className="space-y-10 sm:space-y-16">
+        <div className="space-y-8 sm:space-y-16 py-5">
           {/* My Rooms List */}
           <MyRoomsList
             rooms={myRooms}

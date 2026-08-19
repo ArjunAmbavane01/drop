@@ -96,14 +96,14 @@ export function DashboardActions({
   const isRoomsFull = roomCount >= maxRooms;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-3 mt-8 sm:mt-16 mb-8 sm:mb-10">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 my-8 sm:mt-16 sm:mb-10">
       <div className="min-w-0 flex-1 space-y-1">
         <h2 className="text-xl font-medium tracking-tight">Rooms Dashboard</h2>
         <p className="text-sm text-muted-foreground">
           Manage and access your shared spaces
         </p>
       </div>
-      <div className="flex flex-col sm:flex-row shrink gap-2.5">
+      <div className="flex shrink gap-2.5">
         {/* Create Room Dialog / Limit Tooltip */}
         {isRoomsFull ? (
           <Tooltip>
@@ -111,11 +111,11 @@ export function DashboardActions({
               render={
                 <span
                   tabIndex={0}
-                  className="inline-flex w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md cursor-not-allowed"
+                  className="inline-flex w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md cursor-not-allowed"
                 >
                   <Button
                     disabled
-                    className="w-full sm:w-auto pointer-events-none"
+                    className="w-auto pointer-events-none"
                   >
                     <Plus className="size-4" />
                     Create Room
@@ -143,7 +143,7 @@ export function DashboardActions({
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger
               render={
-                <Button className="w-full sm:w-auto">
+                <Button className="w-full flex-1 sm:w-auto">
                   <Plus className="size-4" />
                   Create Room
                 </Button>
@@ -206,7 +206,7 @@ export function DashboardActions({
         {/* Join Room Dialog */}
         <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
           <DialogTrigger render={
-            <Button variant="secondary" className="w-full sm:w-auto">
+            <Button variant="secondary" className="w-full flex-1 sm:w-auto">
               <Key className="size-4" />
               Join Room
             </Button>

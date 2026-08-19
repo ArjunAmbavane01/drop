@@ -20,7 +20,7 @@ export function RoomRowList({
 }: RoomRowListProps) {
   return (
     <section className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase text-muted-foreground px-3">
+      <h3 className="text-xs font-semibold uppercase text-muted-foreground">
         {title}
         {count !== undefined && ` (${count})`}
       </h3>

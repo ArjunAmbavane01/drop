@@ -354,7 +354,7 @@ export function FilesPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5 h-[60vh] sm:h-[68vh] md:h-[75vh] max-h-[calc(100vh-180px)] min-h-[360px] sm:min-h-[480px]">
+    <div className="flex flex-col gap-4 sm:gap-5 flex-1 h-full min-h-0">
       {/* Drag & Drop Upload Dropzone */}
       <div className="shrink-0">
         <UploadDropzone
@@ -462,7 +462,7 @@ export function FilesPanel({
         ) : (
           <div className="flex-1 min-h-0 overflow-hidden">
             <ScrollArea className="h-full w-full">
-              <div className="pt-1 pb-3 pr-2 space-y-1">
+              <div className="pt-1 pb-3 pr-3 sm:pr-4 space-y-1">
                 <Files className="w-full p-0 bg-transparent space-y-1 border-none shadow-none">
                   {groupedItems.map((item) => {
                     if (item.type === "file") {

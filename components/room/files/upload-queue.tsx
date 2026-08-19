@@ -29,11 +29,11 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
           </h3>
           <ScrollArea
             className={cn(
-              "max-h-40 sm:max-h-48 w-full pb-3 pr-3",
+              "max-h-40 sm:max-h-48 w-full pb-2 sm:pb-3",
               uploads.length <= 3 && "**:data-[slot=scroll-area-scrollbar]:hidden"
             )}
           >
-            <div className="space-y-1.5 pr-2 pb-0.5">
+            <div className="space-y-1.5 pr-3 sm:pr-4 pb-0.5">
               {uploads.map((upload) => (
                 <motion.div
                   key={upload.id}
@@ -42,16 +42,16 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2 text-xs"
+                  className="flex items-center gap-2 sm:gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-2 sm:px-3.5 py-2 text-xs"
                 >
                   <p
-                    className="font-medium text-foreground w-35 sm:w-50 md:w-60 shrink-0 truncate"
+                    className="font-medium text-foreground flex-1 min-w-0 truncate"
                     title={upload.name}
                   >
                     {upload.name}
                   </p>
 
-                  <div className="flex-1 min-w-15">
+                  <div className="w-16 sm:w-24 md:w-32 shrink-0">
                     {upload.status === "error" ? (
                       <p className="text-xs text-destructive truncate">
                         {upload.error || "Upload failed"}
@@ -61,7 +61,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                     )}
                   </div>
 
-                  <span className="text-muted-foreground tabular-nums shrink-0 text-right min-w-9">
+                  <span className="text-muted-foreground tabular-nums shrink-0 text-right w-9 sm:w-10">
                     {upload.status === "complete"
                       ? "100%"
                       : upload.status === "error"
@@ -69,7 +69,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                         : `${upload.progress}%`}
                   </span>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center shrink-0">
                     {upload.status === "error" && (
                       <Tooltip>
                         <TooltipTrigger
@@ -93,7 +93,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                           <Button
                             variant={"ghost"}
                             size={"icon-sm"}
-                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mr-1 sm:mr-0"
                             onClick={() => onCancel(upload.id)}
                             aria-label="Cancel"
                           >

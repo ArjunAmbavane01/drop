@@ -111,7 +111,7 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
           {...inputProps}
           aria-label={label}
           className={cn(
-            "peer w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "peer w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 placeholder:text-muted-foreground sm:placeholder:text-transparent",
             icon && "pl-10",
             isPassword && "pr-10",
             inputClassName
@@ -125,7 +125,7 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
             onChange?.(e.target.value);
           }}
           onFocus={() => setIsFocused(true)}
-          placeholder={isFloating ? inputProps.placeholder : ""}
+          placeholder={isFloating ? "" : label}
           ref={ref}
           type={inputType}
           value={val}
@@ -137,7 +137,7 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground cursor-pointer z-10"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
@@ -155,7 +155,7 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
         )}
         <motion.label
           animate={getLabelAnimation()}
-          className={`pointer-events-none absolute top-1/2 left-3 origin-left -translate-y-1/2 rounded border border-transparent bg-background px-1 text-foreground transition-all ${labelClassName}`}
+          className={`pointer-events-none absolute top-1/2 left-3 origin-left -translate-y-1/2 rounded border border-transparent bg-background px-1 text-foreground transition-all hidden sm:block ${labelClassName}`}
           htmlFor={inputId}
           style={{
             zIndex: 2,

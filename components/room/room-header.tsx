@@ -79,7 +79,7 @@ export function RoomHeader({
       </div>
 
       {/* Right side: Participants, Theme toggle & Clear/Leave room */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         {/* Room Member Avatars */}
         <div className="flex items-center gap-2">
           <AvatarGroup className="-space-x-2">
@@ -115,12 +115,7 @@ export function RoomHeader({
               );
             })}
           </AvatarGroup>
-          <span className="text-xs text-muted-foreground font-medium hidden md:inline-block">
-            {members.length} {members.length === 1 ? "member" : "members"}
-          </span>
         </div>
-
-        <div className="h-3.5 w-px bg-border hidden sm:block" />
 
         <ThemeToggle />
 

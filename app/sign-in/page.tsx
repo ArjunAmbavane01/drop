@@ -11,8 +11,8 @@ export default async function SignInPage() {
   if (session) redirect("/");
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-5">
-      <div className="w-full max-w-md">
+    <main className="flex min-h-screen items-center justify-center p-3 sm:p-5">
+      <div className="w-full sm:max-w-md">
         <AuthForm mode="sign-in" />
         <p className="text-center text-sm text-muted-foreground">
           Need an account?{" "}
