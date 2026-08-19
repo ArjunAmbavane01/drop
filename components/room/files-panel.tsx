@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { MAX_BULK_SELECTION } from "@/lib/constants";
 import {
   deleteFileAction,
   deleteFilesAction,
@@ -118,6 +119,7 @@ export function FilesPanel({
   const isSomeSelected = selectedIds.size > 0 && !isAllSelected;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIds((previous) => {
       let changed = false;
       const next = new Set<string>();
@@ -141,7 +143,12 @@ export function FilesPanel({
       setSelectedIds(new Set());
       setLastSelectedId(null);
     } else {
-      setSelectedIds(new Set(topLevelIds));
+      if (topLevelIds.length > MAX_BULK_SELECTION) {
+        toast.warning(`You can select up to ${MAX_BULK_SELECTION} items at once. Selecting the first ${MAX_BULK_SELECTION}.`);
+        setSelectedIds(new Set(topLevelIds.slice(0, MAX_BULK_SELECTION)));
+      } else {
+        setSelectedIds(new Set(topLevelIds));
+      }
     }
   }
 
@@ -163,6 +170,10 @@ export function FilesPanel({
         const shouldSelect = !prev.has(id);
         for (const rId of rangeIds) {
           if (shouldSelect) {
+            if (next.size >= MAX_BULK_SELECTION) {
+              toast.warning(`Selection limit reached (${MAX_BULK_SELECTION} items max).`);
+              break;
+            }
             next.add(rId);
           } else {
             next.delete(rId);
@@ -172,6 +183,10 @@ export function FilesPanel({
         if (next.has(id)) {
           next.delete(id);
         } else {
+          if (next.size >= MAX_BULK_SELECTION) {
+            toast.warning(`You can select up to ${MAX_BULK_SELECTION} items at once.`);
+            return prev;
+          }
           next.add(id);
         }
       }
@@ -339,7 +354,7 @@ export function FilesPanel({
   }
 
   return (
-    <div className="flex flex-col h-full gap-5 min-h-0 h-[60vh] sm:h-[68vh] md:h-[75vh] max-h-[calc(100vh-180px)] min-h-[480px]">
+    <div className="flex flex-col gap-4 sm:gap-5 h-[60vh] sm:h-[68vh] md:h-[75vh] max-h-[calc(100vh-180px)] min-h-[360px] sm:min-h-[480px]">
       {/* Drag & Drop Upload Dropzone */}
       <div className="shrink-0">
         <UploadDropzone
@@ -393,7 +408,6 @@ export function FilesPanel({
                       variant="destructive"
                       size="xs"
                       disabled={isBulkDeleting}
-                      className="gap-1.5 text-xs font-medium cursor-pointer"
                     >
                       {isBulkDeleting ? (
                         <Spinner className="size-3.5" />
@@ -432,8 +446,6 @@ export function FilesPanel({
               size="xs"
               onClick={handleRefreshFiles}
               disabled={isRefreshing}
-              className="gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground"
-              title="Refresh files"
             >
               {isRefreshing ? (
                 <Spinner className="size-3.5" />

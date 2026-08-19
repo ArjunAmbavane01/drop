@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Download, File, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
@@ -115,12 +116,12 @@ export function FolderTree({
               )}
               >
                 {file.thumbnailUrl ? (
-                  <img
+                  <Image
                     src={file.thumbnailUrl}
                     alt={file.fileName}
+                    width={24}
+                    height={24}
                     className="size-6 rounded object-cover border border-border/60"
-                    loading="lazy"
-                    decoding="async"
                   />
                 ) : (
                   <Icon className="size-4 text-muted-foreground" />

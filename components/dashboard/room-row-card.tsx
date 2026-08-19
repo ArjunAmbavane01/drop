@@ -26,7 +26,7 @@ export function RoomRowCard({
       exit={{ opacity: 0, y: -10 }}
       transition={{ type: "spring", stiffness: 500, damping: 40 }}
       onClick={onClick}
-      className="group grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-8 items-center justify-between p-3 dark:hover:bg-muted/30 hover:bg-muted transition-colors duration-300 cursor-pointer rounded-sm"
+      className="group grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 sm:gap-8 items-center justify-between p-3 dark:hover:bg-muted/30 hover:bg-muted transition-colors duration-300 cursor-pointer rounded-sm"
     >
       {/* Room Name */}
       <div className="min-w-0">
@@ -35,8 +35,8 @@ export function RoomRowCard({
         </h4>
       </div>
 
-      {/* Subtitle */}
-      <div className="text-sm text-muted-foreground whitespace-nowrap">
+      {/* Subtitle — hidden on small screens */}
+      <div className="text-sm text-muted-foreground whitespace-nowrap hidden sm:block">
         {subtitle}
       </div>
 

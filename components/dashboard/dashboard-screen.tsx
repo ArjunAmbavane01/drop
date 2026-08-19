@@ -178,7 +178,7 @@ export function DashboardScreen({
 
   return (
     <div className="min-h-screen bg-background w-full">
-      <div className="flex flex-col mx-auto max-w-3xl w-full py-8 px-5">
+      <div className="flex flex-col mx-auto max-w-3xl w-full py-5 sm:py-8 px-3 sm:px-5">
         {/* Header */}
         <header className="flex items-center justify-between px-3">
           <div className="flex items-center gap-3">
@@ -208,7 +208,7 @@ export function DashboardScreen({
           isJoining={isJoining}
         />
 
-        <div className="space-y-16">
+        <div className="space-y-10 sm:space-y-16">
           {/* My Rooms List */}
           <MyRoomsList
             rooms={myRooms}

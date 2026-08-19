@@ -29,9 +29,9 @@ export function FileRenameDialog({
 }: FileRenameDialogProps) {
   return (
     <Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="rounded-xl max-w-sm">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">Rename file</DialogTitle>
+          <DialogTitle>Rename file</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={(e) => {
@@ -42,14 +42,13 @@ export function FileRenameDialog({
           <Input
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            className="h-8 text-sm mt-2"
             autoFocus
           />
-          <DialogFooter className="mt-4 gap-1.5">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">
+            <Button type="submit">
               Save
             </Button>
           </DialogFooter>
@@ -76,9 +75,9 @@ export function FolderRenameDialog({
 }: FolderRenameDialogProps) {
   return (
     <Dialog open={Boolean(target)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="rounded-xl max-w-sm">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">Rename folder</DialogTitle>
+          <DialogTitle>Rename folder</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={(e) => {
@@ -89,14 +88,13 @@ export function FolderRenameDialog({
           <Input
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            className="h-8 text-sm mt-2"
             autoFocus
           />
-          <DialogFooter className="mt-4 gap-1.5">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">
+            <Button type="submit">
               Save
             </Button>
           </DialogFooter>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Download, File, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
@@ -70,18 +71,18 @@ export function FileRow({
           "flex items-center justify-center transition-opacity",
           isSelected ? "opacity-0" : "group-hover/file-item:opacity-0"
         )}
-        >
-          {file.thumbnailUrl ? (
-            <img
-              src={file.thumbnailUrl}
-              alt={file.fileName}
-              className="size-8 rounded object-cover border border-border/60"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <Icon className="size-5 text-muted-foreground" />
-          )}
+      >
+        {file.thumbnailUrl ? (
+          <Image
+            src={file.thumbnailUrl}
+            alt={file.fileName}
+            width={32}
+            height={32}
+            className="size-8 rounded object-cover border border-border/60"
+          />
+        ) : (
+          <Icon className="size-5 text-muted-foreground" />
+        )}
       </div>
     </div>
   );

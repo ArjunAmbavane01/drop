@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { completeUploadsAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
+import { MAX_UPLOAD_FILES } from "@/lib/constants";
 import type { UploadGroup, UploadState } from "./types";
 import { groupFilesForUpload } from "./file-tree-utils";
 
@@ -174,8 +175,13 @@ export function useFileUpload(roomId: string) {
   }
 
   async function handleUploadStart(fileList: File[]) {
-    const validFiles = fileList.filter((file) => file.size >= 0);
+    let validFiles = fileList.filter((file) => file.size >= 0);
     if (validFiles.length === 0) return;
+
+    if (validFiles.length > MAX_UPLOAD_FILES) {
+      toast.warning(`Too many files selected. Only the first ${MAX_UPLOAD_FILES} will be uploaded.`);
+      validFiles = validFiles.slice(0, MAX_UPLOAD_FILES);
+    }
 
     const uploadGroups = groupFilesForUpload(validFiles);
     await Promise.all(uploadGroups.map((group) => executeGroupUpload(group)));

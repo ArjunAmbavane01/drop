@@ -213,7 +213,7 @@ export function RoomDashboard({
 
   return (
     <main className="min-h-screen bg-background flex flex-col justify-stretch">
-      <div className="mx-auto flex w-full max-w-3xl flex-col flex-1 px-4 py-6 sm:px-6 lg:py-8 justify-start">
+      <div className="mx-auto flex w-full max-w-3xl flex-col flex-1 px-3 py-4 sm:px-6 sm:py-6 lg:py-8 justify-start">
         <RoomHeader
           room={snapshot.room}
           members={snapshot.members}
@@ -224,10 +224,10 @@ export function RoomDashboard({
           currentUserId={currentUser.id}
         />
 
-        <div className="flex flex-col flex-1 mt-4">
+        <div className="flex flex-col flex-1 mt-3 sm:mt-4">
           {/* Action level / row containing Tabs and contextual actions */}
-          <div className="flex items-center justify-between pb-3">
-            <div className="flex items-center gap-5">
+          <div className="flex items-center justify-between pb-3 gap-2 flex-wrap">
+            <div className="flex items-center gap-4 sm:gap-5">
               <button
                 type="button"
                 onClick={() => setActiveTab("text")}

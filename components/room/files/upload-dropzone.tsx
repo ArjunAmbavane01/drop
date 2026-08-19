@@ -44,7 +44,7 @@ export function UploadDropzone({
       />
 
       <motion.div
-        className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 p-6 sm:p-7 text-center cursor-pointer transition-colors hover:border-foreground/30 bg-card/20 dark:bg-card/10"
+        className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 p-4 sm:p-6 md:p-7 text-center cursor-pointer transition-colors hover:border-foreground/30 bg-card/20 dark:bg-card/10"
         onClick={() => fileInputRef.current?.click()}
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}

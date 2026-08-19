@@ -29,8 +29,8 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
           </h3>
           <ScrollArea
             className={cn(
-              "max-h-40 sm:max-h-48 w-full",
-              uploads.length <= 3 && "[&_[data-slot=scroll-area-scrollbar]]:hidden"
+              "max-h-40 sm:max-h-48 w-full pb-3 pr-3",
+              uploads.length <= 3 && "**:data-[slot=scroll-area-scrollbar]:hidden"
             )}
           >
             <div className="space-y-1.5 pr-2 pb-0.5">
@@ -45,15 +45,15 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                   className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-3.5 py-2 text-xs"
                 >
                   <p
-                    className="font-medium text-foreground w-[140px] sm:w-[200px] md:w-[240px] shrink-0 truncate"
+                    className="font-medium text-foreground w-35 sm:w-50 md:w-60 shrink-0 truncate"
                     title={upload.name}
                   >
                     {upload.name}
                   </p>
 
-                  <div className="flex-1 min-w-[60px]">
+                  <div className="flex-1 min-w-15">
                     {upload.status === "error" ? (
-                      <p className="text-[11px] text-destructive truncate">
+                      <p className="text-xs text-destructive truncate">
                         {upload.error || "Upload failed"}
                       </p>
                     ) : (
@@ -61,7 +61,7 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                     )}
                   </div>
 
-                  <span className="text-muted-foreground tabular-nums shrink-0 text-right min-w-[36px]">
+                  <span className="text-muted-foreground tabular-nums shrink-0 text-right min-w-9">
                     {upload.status === "complete"
                       ? "100%"
                       : upload.status === "error"
