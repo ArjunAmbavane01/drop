@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { completeUploadsAction } from "@/server/rooms/actions";
+import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
 import { MAX_UPLOAD_FILES } from "@/lib/constants";
 import type { UploadGroup, UploadState } from "./types";
@@ -64,6 +64,29 @@ export function useFileUpload(roomId: string) {
     const fileProgresses = new Map<string, number>();
 
     try {
+      const filesToValidate = group.files.map((f) => ({
+        name: f.relativePath,
+        size: f.file.size,
+      }));
+
+      const validationResult = await preValidateUploadAction(roomId, filesToValidate);
+      if (!validationResult.success) {
+        let errorMessage = "Upload validation failed.";
+        if (validationResult.error === "file-too-large") {
+          errorMessage = `File "${validationResult.fileName}" exceeds the 2 GB individual file limit.`;
+        } else if (validationResult.error === "user-quota-exceeded") {
+          errorMessage = "Your personal storage quota (5 GB) is exceeded.";
+        } else if (validationResult.error === "room-quota-exceeded") {
+          errorMessage = "The room storage quota (5 GB) is exceeded.";
+        } else if (validationResult.error === "upload-rate-limit-exceeded") {
+          errorMessage = "Upload rate limit exceeded. You can initiate up to 200 files per minute.";
+        }
+        
+        toast.error(errorMessage);
+        setUploads((prev) => prev.filter((u) => u.id !== group.id));
+        return;
+      }
+
       const successfulUploads: CompleteUploadInput[] = [];
 
       // Stream uploads through the backend so the browser never needs direct R2 access.
@@ -124,6 +147,9 @@ export function useFileUpload(roomId: string) {
             request.setRequestHeader("X-File-Name", encodeURIComponent(relativePath));
             request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
             request.setRequestHeader("X-File-Size", String(file.size));
+            if (validationResult.uploadToken) {
+              request.setRequestHeader("X-Upload-Token", validationResult.uploadToken);
+            }
             if (group.type === "folder") {
               request.setRequestHeader("X-Upload-Id", group.id);
             }

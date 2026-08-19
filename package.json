@@ -24,6 +24,8 @@
     "@uppy/core": "^5.2.0",
     "@uppy/dashboard": "^5.1.1",
     "@uppy/react": "^5.2.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.2",
     "archiver": "^8.0.0",
     "better-auth": "^1.6.25",
     "class-variance-authority": "^0.7.1",

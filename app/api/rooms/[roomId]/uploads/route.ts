@@ -7,6 +7,7 @@ import { requireRoomAccess } from "@/server/rooms/auth";
 import { getR2 } from "@/server/r2";
 import { env } from "@/lib/env";
 import { buildUploadObjectKey } from "@/server/rooms/upload-keys";
+import { getRedis } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,36 @@ export async function POST(
     const sizeBytes = sizeBytesHeader ? Number(sizeBytesHeader) : NaN;
     if (!Number.isFinite(sizeBytes) || sizeBytes < 0) {
       return jsonError("Missing file size.", 400);
+    }
+
+    const uploadToken = request.headers.get("x-upload-token");
+    if (!uploadToken) {
+      return jsonError("Upload token is required.", 400);
+    }
+
+    const tokenDataStr = await getRedis().get(`upload-token:${uploadToken}`);
+    if (!tokenDataStr) {
+      return jsonError("Upload token has expired or is invalid. Please try uploading again.", 400);
+    }
+
+    const tokenData = typeof tokenDataStr === "string" ? JSON.parse(tokenDataStr) : tokenDataStr;
+    if (tokenData.userId !== session.user.id || tokenData.roomId !== roomId) {
+      return jsonError("Unauthorized upload token.", 403);
+    }
+
+    const matchingFileIndex = tokenData.files.findIndex((f: any) => 
+      f.size === sizeBytes
+    );
+    if (matchingFileIndex === -1) {
+      return jsonError("Uploaded file size does not match authorization.", 400);
+    }
+
+    // Remove the matched file from the list to prevent token reuse
+    tokenData.files.splice(matchingFileIndex, 1);
+    if (tokenData.files.length > 0) {
+      await getRedis().set(`upload-token:${uploadToken}`, JSON.stringify(tokenData), { ex: 120 });
+    } else {
+      await getRedis().del(`upload-token:${uploadToken}`);
     }
 
     const objectKey = buildUploadObjectKey(roomId, {

@@ -33,4 +33,10 @@ export const env = {
   get r2PublicBaseUrl() {
     return readEnvValue("R2_PUBLIC_BASE_URL");
   },
+  get upstashRedisRestUrl() {
+    return readEnvValue("UPSTASH_REDIS_REST_URL");
+  },
+  get upstashRedisRestToken() {
+    return readEnvValue("UPSTASH_REDIS_REST_TOKEN");
+  },
 };

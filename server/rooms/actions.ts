@@ -2,8 +2,12 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/db";
+import { LIMITS } from "@/lib/limits";
+import { getRedis, getJoinRateLimiter } from "@/lib/ratelimit";
+import { validateUploadQuota } from "@/server/rooms/quota";
 import {
   users,
   rooms,
@@ -49,9 +53,9 @@ export async function createRoomAction(input: CreateRoomInput) {
     .from(rooms)
     .where(eq(rooms.ownerId, session.user.id));
 
-  if (ownedRooms.length >= 5) {
+  if (ownedRooms.length >= LIMITS.MAX_ROOMS_PER_USER) {
     throw new Error(
-      "You have reached the maximum limit of 5 rooms. A room must be deleted before creating another."
+      `You have reached the maximum limit of ${LIMITS.MAX_ROOMS_PER_USER} rooms. A room must be deleted before creating another.`
     );
   }
 
@@ -91,6 +95,11 @@ export async function createRoomAction(input: CreateRoomInput) {
 export async function joinRoomAction(input: JoinRoomInput) {
   const session = await requireRequestSession();
   const validatedInput = joinRoomSchema.parse(input);
+
+  const { success } = await getJoinRateLimiter().limit(session.user.id);
+  if (!success) {
+    throw new Error("Join rate limit exceeded. You can join up to 10 rooms per minute.");
+  }
 
   const [room] = await getDb()
     .select()
@@ -674,4 +683,51 @@ export async function getFileDownloadUrlAction(fileId: string) {
   await requireRoomAccess(file.roomId, session.user.id);
   const url = await createSignedDownloadUrl(file.objectKey, file.fileName);
   return { url, fileName: file.fileName };
+}
+
+export async function preValidateUploadAction(
+  roomId: string,
+  files: { name: string; size: number }[]
+) {
+  const session = await requireRequestSession();
+  await requireRoomAccess(roomId, session.user.id);
+
+  try {
+    await validateUploadQuota(session.user.id, roomId, files);
+
+    const uploadToken = randomUUID();
+    const tokenData = {
+      userId: session.user.id,
+      roomId,
+      files: files.map((f) => ({ name: f.name, size: f.size })),
+    };
+
+    await getRedis().set(
+      `upload-token:${uploadToken}`,
+      JSON.stringify(tokenData),
+      { ex: 120 } // 2 minutes expiration
+    );
+
+    return { success: true, uploadToken };
+  } catch (error: any) {
+    const message = error.message || "";
+    if (message.startsWith("file-too-large:")) {
+      const fileName = message.replace("file-too-large:", "");
+      return { success: false, error: "file-too-large", fileName };
+    }
+    if (
+      [
+        "room-quota-exceeded",
+        "user-quota-exceeded",
+        "upload-rate-limit-exceeded",
+      ].includes(message)
+    ) {
+      return { success: false, error: message };
+    }
+    return {
+      success: false,
+      error: "unknown",
+      message: "An unexpected error occurred during pre-validation.",
+    };
+  }
 }
