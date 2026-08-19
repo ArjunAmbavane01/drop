@@ -52,7 +52,7 @@ export function RoomHeader({
   const router = useRouter();
 
   return (
-    <header className="flex items-center justify-between gap-2 sm:gap-4 pb-4">
+    <header className="flex items-center justify-between gap-2 sm:gap-4 pb-4 shrink-0">
       {/* Left side: Back button & Room Details */}
       <div className="flex items-center gap-3 sm:gap-8 min-w-0">
         <Tooltip>
