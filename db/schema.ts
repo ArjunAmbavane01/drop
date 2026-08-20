@@ -157,6 +157,7 @@ export const uploadedFiles = pgTable(
     fileName: text("file_name").notNull(),
     contentType: text("content_type"),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    encryptedSizeBytes: bigint("encrypted_size_bytes", { mode: "number" }).notNull().default(0),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -166,6 +167,46 @@ export const uploadedFiles = pgTable(
     roomIdx: index("uploaded_files_room_idx").on(table.roomId),
     uploadIdx: index("uploaded_files_upload_idx").on(table.uploadId),
   }),
+);
+
+export const userPublicKeys = pgTable(
+  "user_public_keys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("user_public_keys_user_idx").on(table.userId),
+    userDeviceUnique: uniqueIndex("user_public_keys_user_device_idx").on(table.userId, table.deviceId),
+  })
+);
+
+export const fileKeys = pgTable(
+  "file_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => uploadedFiles.id, { onDelete: "cascade" }),
+    publicKeyId: text("public_key_id")
+      .notNull()
+      .references(() => userPublicKeys.id, { onDelete: "cascade" }),
+    encryptedKey: text("encrypted_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    fileIdx: index("file_keys_file_idx").on(table.fileId),
+    filePublicKeyUnique: uniqueIndex("file_keys_file_public_key_idx").on(table.fileId, table.publicKeyId),
+  })
 );
 
 

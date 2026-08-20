@@ -6,7 +6,7 @@ import { getUploadRateLimiter } from "@/lib/ratelimit";
 
 export async function getUserStorageUsage(userId: string): Promise<number> {
   const [result] = await getDb()
-    .select({ total: sql<number>`COALESCE(SUM(${uploadedFiles.sizeBytes}), 0)` })
+    .select({ total: sql<number>`COALESCE(SUM(${uploadedFiles.encryptedSizeBytes}), 0)` })
     .from(uploadedFiles)
     .where(eq(uploadedFiles.uploaderId, userId));
   return Number(result?.total ?? 0);
@@ -14,7 +14,7 @@ export async function getUserStorageUsage(userId: string): Promise<number> {
 
 export async function getRoomStorageUsage(roomId: string): Promise<number> {
   const [result] = await getDb()
-    .select({ total: sql<number>`COALESCE(SUM(${uploadedFiles.sizeBytes}), 0)` })
+    .select({ total: sql<number>`COALESCE(SUM(${uploadedFiles.encryptedSizeBytes}), 0)` })
     .from(uploadedFiles)
     .where(eq(uploadedFiles.roomId, roomId));
   return Number(result?.total ?? 0);

@@ -2,11 +2,62 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
+import {
+  completeUploadsAction,
+  preValidateUploadAction,
+  getRoomPublicKeysAction,
+} from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
 import { MAX_UPLOAD_FILES } from "@/lib/constants";
 import type { UploadGroup, UploadState } from "./types";
 import { groupFilesForUpload } from "./file-tree-utils";
+import {
+  getEncryptedSize,
+  generateFileKey,
+  wrapFileKey,
+  importPublicKeySpki,
+  encryptChunk,
+  CHUNK_SIZE,
+} from "@/lib/e2ee";
+
+function createEncryptedStream(
+  file: File,
+  fileKey: CryptoKey,
+  fileId: string,
+  totalChunks: number,
+  onProgress: (bytesRead: number) => void
+) {
+  let chunkIndex = 0;
+  let offset = 0;
+
+  return new ReadableStream({
+    async pull(controller) {
+      if (offset >= file.size) {
+        controller.close();
+        return;
+      }
+
+      const slice = file.slice(offset, offset + CHUNK_SIZE);
+      const arrayBuffer = await slice.arrayBuffer();
+      const chunkData = new Uint8Array(arrayBuffer);
+
+      const encrypted = await encryptChunk(
+        chunkData,
+        fileKey,
+        fileId,
+        chunkIndex,
+        totalChunks
+      );
+
+      controller.enqueue(encrypted);
+
+      chunkIndex++;
+      offset += chunkData.length;
+
+      onProgress(encrypted.length);
+    },
+  });
+}
 
 export function useFileUpload(roomId: string) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
@@ -25,8 +76,9 @@ export function useFileUpload(roomId: string) {
   }, []);
 
   async function executeGroupUpload(group: UploadGroup) {
-    const totalBytes = group.files.reduce((sum, f) => sum + f.file.size, 0);
+    const totalBytes = group.files.reduce((sum, f) => sum + getEncryptedSize(f.file.size), 0);
     const activeRequests: XMLHttpRequest[] = [];
+    const abortControllers: AbortController[] = [];
 
     setUploads((prev) => {
       const existing = prev.find((u) => u.id === group.id);
@@ -39,6 +91,7 @@ export function useFileUpload(roomId: string) {
                 progress: 0,
                 uploadedBytes: 0,
                 activeRequests,
+                abortControllers,
                 error: undefined,
               }
             : u,
@@ -54,6 +107,7 @@ export function useFileUpload(roomId: string) {
             totalBytes,
             uploadedBytes: 0,
             activeRequests,
+            abortControllers,
             group,
           },
           ...prev,
@@ -64,9 +118,11 @@ export function useFileUpload(roomId: string) {
     const fileProgresses = new Map<string, number>();
 
     try {
+      const { keys: roomKeys } = await getRoomPublicKeysAction(roomId);
+
       const filesToValidate = group.files.map((f) => ({
         name: f.relativePath,
-        size: f.file.size,
+        size: getEncryptedSize(f.file.size),
       }));
 
       const validationResult = await preValidateUploadAction(roomId, filesToValidate);
@@ -89,81 +145,90 @@ export function useFileUpload(roomId: string) {
 
       const successfulUploads: CompleteUploadInput[] = [];
 
-      // Stream uploads through the backend so the browser never needs direct R2 access.
       await Promise.all(
         group.files.map(async (fileInfo) => {
           const { file, relativePath } = fileInfo;
+          const encryptedSize = getEncryptedSize(file.size);
+          const fileId = crypto.randomUUID();
+          const fileKey = await generateFileKey();
+          const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
 
-          const objectKey = await new Promise<string>((resolve, reject) => {
-            const request = new XMLHttpRequest();
-            activeRequests.push(request);
-
-            request.upload.addEventListener("progress", (event) => {
-              if (!event.lengthComputable) return;
-              fileProgresses.set(relativePath, event.loaded);
-
-              let totalUploaded = 0;
-              for (const bytes of fileProgresses.values()) {
-                totalUploaded += bytes;
-              }
-
-              const progress = totalBytes > 0 ? Math.round((totalUploaded / totalBytes) * 100) : 0;
-
-              setUploads((prev) =>
-                prev.map((u) =>
-                  u.id === group.id
-                    ? { ...u, uploadedBytes: totalUploaded, progress: Math.min(progress, 99) }
-                    : u,
-                ),
-              );
-            });
-
-            request.addEventListener("load", () => {
-              if (request.status >= 200 && request.status < 300) {
-                fileProgresses.set(relativePath, file.size);
-                try {
-                  const response = JSON.parse(request.responseText || "{}");
-                  if (typeof response?.objectKey === "string" && response.objectKey.length > 0) {
-                    resolve(response.objectKey);
-                    return;
-                  }
-                  reject(new Error("Upload completed without an object key."));
-                } catch {
-                  reject(new Error("Upload completed without a valid response."));
-                }
-              } else {
-                try {
-                  const response = JSON.parse(request.responseText || "{}");
-                  reject(new Error(response.error || `Upload failed with status ${request.status}`));
-                } catch {
-                  reject(new Error(`Upload failed with status ${request.status}`));
-                }
-              }
-            });
-
-            request.addEventListener("error", () => reject(new Error("Network error during upload.")));
-            request.addEventListener("abort", () => reject(new Error("Upload cancelled.")));
-            request.open("POST", `/api/rooms/${roomId}/uploads`);
-            request.setRequestHeader("X-File-Name", encodeURIComponent(relativePath));
-            request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-            request.setRequestHeader("X-File-Size", String(file.size));
-            if (validationResult.uploadToken) {
-              request.setRequestHeader("X-Upload-Token", validationResult.uploadToken);
+          const wrappedKeys = [];
+          for (const keyInfo of roomKeys) {
+            try {
+              const rsaPubKey = await importPublicKeySpki(keyInfo.publicKey);
+              const encryptedKey = await wrapFileKey(fileKey, rsaPubKey);
+              wrappedKeys.push({
+                publicKeyId: keyInfo.id,
+                encryptedKey,
+              });
+            } catch (err) {
+              console.error("Failed to wrap key for member public key:", keyInfo.id, err);
             }
-            if (group.type === "folder") {
-              request.setRequestHeader("X-Upload-Id", group.id);
+          }
+
+          const abortController = new AbortController();
+          abortControllers.push(abortController);
+
+          fileProgresses.set(relativePath, 0);
+
+          const stream = createEncryptedStream(file, fileKey, fileId, totalChunks, (bytes) => {
+            const current = fileProgresses.get(relativePath) || 0;
+            fileProgresses.set(relativePath, current + bytes);
+
+            let totalUploaded = 0;
+            for (const b of fileProgresses.values()) {
+              totalUploaded += b;
             }
-            request.send(file);
+
+            const progress = totalBytes > 0 ? Math.round((totalUploaded / totalBytes) * 100) : 0;
+
+            setUploads((prev) =>
+              prev.map((u) =>
+                u.id === group.id
+                  ? { ...u, uploadedBytes: totalUploaded, progress: Math.min(progress, 99) }
+                  : u,
+              ),
+            );
           });
 
-          // Upload was successful, add to database complete queue
+          const response = await fetch(`/api/rooms/${roomId}/uploads`, {
+            method: "POST",
+            headers: {
+              "X-File-Name": encodeURIComponent(relativePath),
+              "Content-Type": file.type || "application/octet-stream",
+              "X-File-Size": String(encryptedSize),
+              ...(validationResult.uploadToken ? { "X-Upload-Token": validationResult.uploadToken } : {}),
+              ...(group.type === "folder" ? { "X-Upload-Id": group.id } : {}),
+            },
+            body: stream as unknown as BodyInit,
+            // @ts-expect-error - duplex is not standard in all fetch typings
+            duplex: "half",
+            signal: abortController.signal,
+          });
+
+          if (!response.ok) {
+            const responseText = await response.text();
+            let errMsg = `Upload failed with status ${response.status}`;
+            try {
+              const parsed = JSON.parse(responseText);
+              errMsg = parsed.error || errMsg;
+            } catch {}
+            throw new Error(errMsg);
+          }
+
+          const responseData = await response.json();
+          const objectKey = responseData.objectKey;
+
           successfulUploads.push({
+            fileId,
             objectKey,
             fileName: relativePath,
             contentType: file.type || "application/octet-stream",
             sizeBytes: file.size,
             uploadId: group.type === "folder" ? group.id : undefined,
             folderName: group.type === "folder" ? group.name : undefined,
+            wrappedKeys,
           });
         }),
       );
@@ -218,6 +283,7 @@ export function useFileUpload(roomId: string) {
       const item = prev.find((u) => u.id === id);
       if (item) {
         item.activeRequests.forEach((xhr) => xhr.abort());
+        item.abortControllers?.forEach((ac) => ac.abort());
       }
       return prev.filter((u) => u.id !== id);
     });

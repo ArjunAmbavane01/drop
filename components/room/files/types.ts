@@ -20,6 +20,7 @@ export type UploadState = {
   uploadedBytes: number;
   error?: string;
   activeRequests: XMLHttpRequest[];
+  abortControllers?: AbortController[];
   group: UploadGroup;
 };
 

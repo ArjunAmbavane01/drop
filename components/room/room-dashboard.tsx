@@ -18,6 +18,7 @@ import type { RoomEvent, RoomMember, RoomSnapshot } from "@/types/rooms";
 import { FilesPanel } from "@/components/room/files-panel";
 import { QuickTextPanel } from "@/components/room/quick-text-panel";
 import { RoomHeader } from "@/components/room/room-header";
+import { ensureDeviceKeyRegistered, syncMissingFileKeys } from "@/lib/e2ee";
 
 export function RoomDashboard({
   initialSnapshot,
@@ -123,6 +124,7 @@ export function RoomDashboard({
             files: [],
           };
         case "member.joined":
+          void syncMissingFileKeys(snapshot.room.id);
           return previous.members.some((member) => member.id === event.payload.member.id)
             ? previous
             : { ...previous, members: [...previous.members, event.payload.member] };
@@ -135,9 +137,21 @@ export function RoomDashboard({
           return previous;
       }
     });
-  }, []);
+  }, [snapshot.room.id]);
 
   useRoomEvents(snapshot.room.id, handleEvent, setOnlineUserIds);
+
+  useEffect(() => {
+    async function initE2ee() {
+      try {
+        await ensureDeviceKeyRegistered();
+        await syncMissingFileKeys(snapshot.room.id);
+      } catch (err) {
+        console.error("Failed to initialize E2EE keys:", err);
+      }
+    }
+    void initE2ee();
+  }, [snapshot.room.id]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

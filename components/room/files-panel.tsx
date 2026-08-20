@@ -10,11 +10,17 @@ import {
   deleteFolderAction,
   deleteFoldersAction,
   getFileDownloadUrlAction,
+  getFileDownloadKeyAction,
   renameFileAction,
   renameFolderAction,
   refreshRoomFilesAction,
 } from "@/server/rooms/actions";
 import type { RoomFile } from "@/types/rooms";
+import {
+  getClientDeviceKey,
+  unwrapFileKey,
+  decryptChunk,
+} from "@/lib/e2ee";
 import { Files } from "@/components/animate-ui/components/radix/files";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -240,16 +246,101 @@ export function FilesPanel({
     }
   }
 
+async function decryptStream(
+  encryptedStream: ReadableStream<Uint8Array>,
+  fileKey: CryptoKey,
+  fileId: string,
+  originalSize: number
+): Promise<Blob> {
+  const reader = encryptedStream.getReader();
+  const decryptedChunks: Uint8Array[] = [];
+  let buffer = new Uint8Array(0);
+  let chunkIndex = 0;
+  const totalChunks = Math.ceil(originalSize / (1024 * 1024)) || 1;
+  const encryptedChunkSize = 1024 * 1024 + 28;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (value) {
+      const nextBuffer = new Uint8Array(buffer.length + value.length);
+      nextBuffer.set(buffer, 0);
+      nextBuffer.set(value, buffer.length);
+      buffer = nextBuffer;
+    }
+
+    while (buffer.length > 0) {
+      const expectedSize = chunkIndex < totalChunks - 1
+        ? encryptedChunkSize
+        : (originalSize - chunkIndex * 1024 * 1024) + 28;
+
+      if (buffer.length >= expectedSize) {
+        const encryptedChunk = buffer.slice(0, expectedSize);
+        const decrypted = await decryptChunk(
+          encryptedChunk,
+          fileKey,
+          fileId,
+          chunkIndex,
+          totalChunks
+        );
+        decryptedChunks.push(decrypted);
+
+        buffer = buffer.slice(expectedSize);
+        chunkIndex++;
+      } else {
+        break;
+      }
+    }
+
+    if (done) {
+      break;
+    }
+  }
+
+  return new Blob(decryptedChunks as unknown as BlobPart[]);
+}
+
   async function handleDownload(fileId: string) {
     try {
-      const { url, fileName } = await getFileDownloadUrlAction(fileId);
+      const file = files.find((f) => f.id === fileId);
+      if (!file) {
+        throw new Error("File not found.");
+      }
+
+      toast.info(`Preparing to download ${file.fileName}...`);
+
+      const { url } = await getFileDownloadUrlAction(fileId);
+      const { deviceId, keyPair } = await getClientDeviceKey();
+      const { encryptedKey } = await getFileDownloadKeyAction(fileId, deviceId);
+      const fileKey = await unwrapFileKey(encryptedKey, keyPair.privateKey);
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to download encrypted file: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error("Response body is null.");
+      }
+
+      const decryptedBlob = await decryptStream(
+        response.body as unknown as ReadableStream<Uint8Array>,
+        fileKey,
+        file.id,
+        file.sizeBytes
+      );
+
+      const blobUrl = URL.createObjectURL(decryptedBlob);
       const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
+      link.href = blobUrl;
+      link.download = file.fileName.split("/").pop() || file.fileName;
       link.style.display = "none";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+      
+      toast.success("Download complete!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to download file.");
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { EncryptedImage } from "./encrypted-image";
 import { Download, File, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
@@ -73,9 +73,8 @@ export function FileRow({
         )}
       >
         {file.thumbnailUrl ? (
-          <Image
-            src={file.thumbnailUrl}
-            alt={file.fileName}
+          <EncryptedImage
+            file={file}
             width={32}
             height={32}
             className="size-8 rounded object-cover border border-border/60"
