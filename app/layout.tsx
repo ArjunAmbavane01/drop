@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Drop",
-  description: "A private cross-device clipboard for text, files, folders, and screenshots.",
+  description: "A minimal cross-device clipboard for text, files, folders, and screenshots.",
 };
 
 export default function RootLayout({

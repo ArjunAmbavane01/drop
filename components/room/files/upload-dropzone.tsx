@@ -1,9 +1,9 @@
 "use client";
 
-import type { ChangeEvent, RefObject } from "react";
-import { FolderUp, Upload } from "lucide-react";
+import type { ChangeEvent, ClipboardEvent, RefObject } from "react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
+import { Clipboard, FolderUp, Upload } from "lucide-react";
 
 interface UploadDropzoneProps {
   isDragging: boolean;
@@ -14,6 +14,8 @@ interface UploadDropzoneProps {
   onDragEnter: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
+  onClipboardPaste: (event: ClipboardEvent<HTMLDivElement>) => void;
+  onClipboardUpload: () => void;
 }
 
 export function UploadDropzone({
@@ -25,6 +27,8 @@ export function UploadDropzone({
   onDragEnter,
   onDragOver,
   onDragLeave,
+  onClipboardPaste,
+  onClipboardUpload,
 }: UploadDropzoneProps) {
   return (
     <>
@@ -44,8 +48,10 @@ export function UploadDropzone({
       />
 
       <motion.div
-        className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 p-4 sm:p-6 md:p-7 text-center cursor-pointer transition-colors hover:border-foreground/30 bg-card/20 dark:bg-card/10"
+        className="relative flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 p-4 sm:p-6 md:p-7 text-center cursor-pointer transition-colors hover:border-foreground/30"
         onClick={() => fileInputRef.current?.click()}
+        onPaste={onClipboardPaste}
+        tabIndex={0}
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -55,36 +61,34 @@ export function UploadDropzone({
           backgroundColor: isDragging ? "var(--accent)" : undefined,
         }}
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground mb-2.5">
-          <Upload className="h-4 w-4" />
+        <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Upload className="size-4" />
         </div>
 
         <p className="text-xs sm:text-sm font-medium text-foreground">
           Drag & drop your files here, or{" "}
           <span className="text-primary hover:underline font-semibold">browse</span>
         </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Supports multiple files or directories
         </p>
 
-        <div className="mt-3.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-3 flex items-center justify-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <Button
             variant="secondary"
-            size="xs"
-            onClick={() => fileInputRef.current?.click()}
-            className="gap-1.5 text-xs font-medium cursor-pointer"
+            size="sm"
+            onClick={() => folderInputRef.current?.click()}
           >
-            <Upload className="h-3.5 w-3.5" />
-            Upload files
+            <FolderUp />
+            Upload folder
           </Button>
           <Button
             variant="secondary"
-            size="xs"
-            onClick={() => folderInputRef.current?.click()}
-            className="gap-1.5 text-xs font-medium cursor-pointer"
+            size="sm"
+            onClick={onClipboardUpload}
           >
-            <FolderUp className="h-3.5 w-3.5" />
-            Upload folder
+            <Clipboard />
+            From clipboard
           </Button>
         </div>
       </motion.div>

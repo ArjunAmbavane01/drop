@@ -146,6 +146,8 @@ export function FilesPanel({
     handleRetryUpload,
     pendingFolderUpload,
     confirmFolderUpload,
+    handleClipboardUpload,
+    handleClipboardPaste,
   } = useFileUpload(roomId, exclusions);
 
   const groupedItems = useMemo(() => groupFilesAndFolders(files), [files]);
@@ -179,11 +181,8 @@ export function FilesPanel({
       let changed = false;
       const next = new Set<string>();
       for (const id of previous) {
-        if (currentItemIds.has(id)) {
-          next.add(id);
-        } else {
-          changed = true;
-        }
+        if (currentItemIds.has(id)) next.add(id);
+        else changed = true;
       }
       return changed ? next : previous;
     });
@@ -421,6 +420,8 @@ export function FilesPanel({
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
+          onClipboardPaste={handleClipboardPaste}
+          onClipboardUpload={handleClipboardUpload}
         />
       </div>
 
@@ -432,8 +433,8 @@ export function FilesPanel({
       />
 
       {/* Uploaded Files List */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex items-center justify-between mb-2 select-none shrink-0 min-h-7">
+      <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+        <div className="flex items-center justify-between select-none shrink-0">
           <div className="flex items-center gap-2">
             {groupedItems.length > 0 && (
               <Checkbox
@@ -454,7 +455,7 @@ export function FilesPanel({
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {selectedIds.size > 0 && (
               <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
                 <AlertDialogTrigger
@@ -464,12 +465,8 @@ export function FilesPanel({
                       size="xs"
                       disabled={isBulkDeleting}
                     >
-                      {isBulkDeleting ? (
-                        <Spinner className="size-3.5" />
-                      ) : (
-                        <Trash2 className="size-3.5" />
-                      )}
-                      <span>Delete ({selectedIds.size})</span>
+                      {isBulkDeleting ? <Spinner /> : <Trash2 />}
+                      <span className="flex items-center gap-1"><span className="hidden sm:block">Delete</span> ({selectedIds.size})</span>
                     </Button>
                   }
                 />
@@ -498,27 +495,20 @@ export function FilesPanel({
 
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={() => setIsSettingsOpen(true)}
               title="Upload Exclusions"
-              className="gap-1.5 cursor-pointer"
             >
-              <Settings className="size-3.5" />
-              <span>Exclusions</span>
+              <Settings />
             </Button>
 
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onClick={handleRefreshFiles}
               disabled={isRefreshing}
             >
-              {isRefreshing ? (
-                <Spinner className="size-3.5" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-              <span>Refresh</span>
+              {isRefreshing ? <Spinner /> : <RefreshCw />}
             </Button>
           </div>
         </div>

@@ -155,8 +155,8 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
             <>
               <Spinner />
               {mode === "sign-up"
-                ? "Creating account..."
-                : "Signing in..."}
+                ? "Creating account"
+                : "Signing in"}
             </>
           ) : mode === "sign-up" ? (
             "Create account"

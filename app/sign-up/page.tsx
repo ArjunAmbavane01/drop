@@ -9,9 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function SignUpPage() {
   const session = await getCurrentSession();
 
-  if (session) {
-    redirect("/");
-  }
+  if (session) redirect("/");
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-12">

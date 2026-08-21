@@ -11,12 +11,7 @@ export default function DashboardLoading() {
             <div className="flex size-8 sm:size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <FolderOpen className="size-4 sm:size-5" />
             </div>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">Drop</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Private cross-device transfer
-              </p>
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight">Drop</h1>
           </div>
 
           <div className="flex items-center gap-2">

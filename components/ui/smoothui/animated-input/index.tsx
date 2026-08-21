@@ -67,8 +67,8 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
       }
       if (isFloating) {
         return {
-          borderColor: "var(--color-brand)",
-          color: "var(--color-brand)",
+          borderColor: "#fff",
+          color: "#fff",
           scale: 0.85,
           y: -24,
         };
@@ -82,8 +82,8 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
       }
       if (isFloating) {
         return {
-          borderColor: "var(--color-brand)",
-          color: "var(--color-brand)",
+          borderColor: "#fff",
+          color: "#fff",
           transform: "translateY(-24px) scale(0.85)",
         };
       }

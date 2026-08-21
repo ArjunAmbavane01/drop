@@ -212,8 +212,8 @@ export function RoomDashboard({
   }
 
   return (
-    <main className="h-[100dvh] overflow-hidden bg-background flex flex-col justify-stretch">
-      <div className="mx-auto flex w-full max-w-3xl flex-col flex-1 px-3 py-4 sm:px-6 sm:py-6 lg:py-8 justify-start min-h-0">
+    <main className="h-dvh overflow-hidden bg-background flex flex-col justify-stretch">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 flex-1 px-3 py-4 sm:px-6 sm:py-6 lg:py-8 justify-start min-h-0">
         <RoomHeader
           room={snapshot.room}
           members={snapshot.members}
@@ -224,45 +224,44 @@ export function RoomDashboard({
           currentUserId={currentUser.id}
         />
 
-        <div className="flex flex-col flex-1 mt-3 sm:mt-4 min-h-0">
+        <div className="flex flex-col flex-1 gap-2 min-h-0">
           {/* Action level / row containing Tabs and contextual actions */}
-          <div className="flex items-center justify-between pb-3 gap-2 flex-wrap shrink-0">
-            <div className="flex items-center gap-4 sm:gap-5">
+          <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setActiveTab("text")}
-                className={`text-xs font-semibold uppercase transition-colors relative pb-1.5 cursor-pointer ${
-                  activeTab === "text"
+                className={`relative px-3 py-1 text-sm uppercase cursor-pointer ${activeTab === "text"
                     ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    : "text-muted-foreground hover:text-foreground transition-colors duration-300"
+                  }`}
               >
-                Text
                 {activeTab === "text" && (
-                  <motion.div
-                    layoutId="activeTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
+                  <motion.span
+                    layoutId="activeTabPill"
+                    className="absolute inset-0 rounded-md border border-foreground/60"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
+                <span className="relative z-10">Text</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab("files")}
-                className={`text-xs font-semibold uppercase transition-colors relative pb-1.5 cursor-pointer ${
-                  activeTab === "files"
+                className={`relative px-3 py-1 text-sm uppercase cursor-pointer ${activeTab === "files"
                     ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    : "text-muted-foreground hover:text-foreground transition-colors duration-300"
+                  }`}
               >
-                Files
                 {activeTab === "files" && (
-                  <motion.div
-                    layoutId="activeTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full"
+                  <motion.span
+                    layoutId="activeTabPill"
+                    className="absolute inset-0 rounded-lg border border-foreground/60"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
+                <span className="relative z-10">Files</span>
               </button>
             </div>
 
@@ -271,26 +270,25 @@ export function RoomDashboard({
               <div className="flex items-center gap-1.5">
                 <Button
                   variant="secondary"
-                  size="xs"
+                  size="sm"
                   onClick={handleCopyText}
-                  className="gap-1.5 text-xs font-medium cursor-pointer"
                   title="Copy text to clipboard"
                 >
                   {copied ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-500" />
+                    <Check className="text-emerald-500" />
                   ) : (
-                    <Copy className="h-3.5 w-3.5" />
+                    <Copy/>
                   )}
                   <span>{copied ? "Copied" : "Copy"}</span>
                 </Button>
                 <Button
                   variant="ghost"
-                  size="xs"
+                  size="sm"
                   onClick={handleClearText}
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5 font-medium transition-colors cursor-pointer"
+                  className="hover:text-destructive hover:bg-destructive/10"
                   title="Clear text"
                 >
-                  <Eraser className="h-3.5 w-3.5" />
+                  <Eraser />
                   <span>Clear text</span>
                 </Button>
               </div>

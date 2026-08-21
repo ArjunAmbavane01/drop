@@ -52,9 +52,9 @@ export function RoomHeader({
   const router = useRouter();
 
   return (
-    <header className="flex items-center justify-between gap-2 sm:gap-4 pb-4 shrink-0">
+    <header className="flex items-center justify-between gap-2 sm:gap-4 shrink-0">
       {/* Left side: Back button & Room Details */}
-      <div className="flex items-center gap-3 sm:gap-8 min-w-0">
+      <div className="flex items-center gap-3 sm:gap-5">
         <Tooltip>
           <TooltipTrigger
             render={
@@ -71,7 +71,7 @@ export function RoomHeader({
           <TooltipContent>Back</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <h1 className="font-semibold text-foreground truncate text-sm sm:text-base">
+          <h1 className="font-semibold text-foreground truncate text-base">
             {room.name}
           </h1>
           <RoomCodeCopy code={room.roomCode} />

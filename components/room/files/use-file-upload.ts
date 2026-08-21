@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent as ReactClipboardEvent } from "react";
 import { toast } from "sonner";
 import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
@@ -48,13 +48,13 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
         return prev.map((u) =>
           u.id === group.id
             ? {
-                ...u,
-                status: "uploading",
-                progress: 0,
-                uploadedBytes: 0,
-                activeRequests,
-                error: undefined,
-              }
+              ...u,
+              status: "uploading",
+              progress: 0,
+              uploadedBytes: 0,
+              activeRequests,
+              error: undefined,
+            }
             : u,
         );
       } else {
@@ -115,7 +115,7 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
         } else if (err === "upload-rate-limit-exceeded") {
           errorMessage = `Upload rate limit exceeded. You can initiate up to ${LIMITS.MAX_UPLOAD_SESSIONS_PER_MIN} upload sessions per minute.`;
         }
-        
+
         toast.error(errorMessage);
         setUploads((prev) => prev.filter((u) => u.id !== group.id));
         return;
@@ -339,23 +339,92 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     }
   }
 
-  const handleUploadStartRef = useRef(handleUploadStart);
+  // Explicit Clipboard upload handler (e.g. from button click)
+  async function handleClipboardUpload() {
+    try {
+      if (!navigator.clipboard?.read) {
+        toast.error("Clipboard access is not supported in this browser.");
+        return;
+      }
 
-  useEffect(() => {
-    handleUploadStartRef.current = handleUploadStart;
-  });
+      const clipboardItems = await navigator.clipboard.read();
+      const files: File[] = [];
 
-  // Global paste handler
-  useEffect(() => {
-    async function handlePaste(event: ClipboardEvent) {
-      const clipboardFiles = Array.from(event.clipboardData?.files ?? []);
-      if (clipboardFiles.length === 0) return;
-      event.preventDefault();
-      await handleUploadStartRef.current(clipboardFiles);
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith("image/"));
+
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const extension = imageType.split("/")[1] || "png";
+
+          files.push(
+            new File(
+              [blob],
+              `pasted-image-${Date.now()}.${extension}`,
+              { type: imageType }
+            )
+          );
+
+          continue;
+        }
+
+        if (item.types.includes("text/plain")) {
+          const blob = await item.getType("text/plain");
+          const text = await blob.text();
+
+          if (text.trim()) {
+            files.push(
+              new File(
+                [blob],
+                `pasted-text-${Date.now()}.txt`,
+                { type: "text/plain" }
+              )
+            );
+          }
+        }
+      }
+
+      if (files.length === 0) {
+        toast.error("No image or text found in clipboard.");
+        return;
+      }
+
+      await handleUploadStart(files);
+    } catch (error) {
+      console.error("Clipboard upload failed:", error);
+      toast.error("Failed to read from clipboard. Please try again.");
     }
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
-  }, []);
+  }
+
+  // Local Dropzone paste handler (triggers when focused and user presses Ctrl+V)
+  async function handleClipboardPaste(
+    event: React.ClipboardEvent<HTMLDivElement>
+  ) {
+    const items = Array.from(event.clipboardData.items);
+
+    const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
+
+    if (imageItem) {
+      event.preventDefault();
+      const file = imageItem.getAsFile();
+      if (file) await handleUploadStart([file]);
+      return;
+    }
+
+    const text = event.clipboardData.getData("text/plain");
+
+    if (text.trim()) {
+      event.preventDefault();
+
+      const file = new File(
+        [text],
+        `pasted-text-${Date.now()}.txt`,
+        { type: "text/plain" }
+      );
+
+      await handleUploadStart([file]);
+    }
+  }
 
   return {
     uploads,
@@ -371,5 +440,7 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     handleRetryUpload,
     pendingFolderUpload,
     confirmFolderUpload,
+    handleClipboardUpload,
+    handleClipboardPaste,
   };
 }
