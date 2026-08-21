@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { MAX_TEXT_LENGTH } from "@/lib/constants";
+
+export const MAX_TEXT_LENGTH = 100_000;
 
 // ==========================================
 // Authentication Schemas
@@ -50,13 +51,6 @@ export const updateTextSchema = z.object({
 // Upload & File Schemas
 // ==========================================
 
-export const createUploadSchema = z.object({
-  fileName: z.string().min(1).max(260),
-  contentType: z.string().min(1).max(255),
-  sizeBytes: z.number().int().nonnegative(),
-  uploadId: z.string().uuid().optional().nullable(),
-});
-
 export const completeUploadSchema = z.object({
   objectKey: z.string().min(1),
   fileName: z.string().min(1).max(260),
@@ -77,7 +71,6 @@ export const renameFolderSchema = z.object({
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;
 export type JoinRoomInput = z.infer<typeof joinRoomSchema>;
 export type UpdateTextInput = z.infer<typeof updateTextSchema>;
-export type CreateUploadInput = z.infer<typeof createUploadSchema>;
 export type CompleteUploadInput = z.infer<typeof completeUploadSchema>;
 export type RenameFileInput = z.infer<typeof renameFileSchema>;
 export type RenameFolderInput = z.infer<typeof renameFolderSchema>;

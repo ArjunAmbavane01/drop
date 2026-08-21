@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_TEXT_LENGTH } from "@/lib/constants";
+import { MAX_TEXT_LENGTH } from "@/lib/validators";
 
 export function QuickTextPanel({
   value,

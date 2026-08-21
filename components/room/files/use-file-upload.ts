@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
-import { MAX_UPLOAD_FILES } from "@/lib/constants";
+import { LIMITS } from "@/lib/limits";
+import { isExcludedPath } from "@/lib/exclusions";
 import type { UploadGroup, UploadState } from "./types";
-import { groupFilesForUpload } from "./file-tree-utils";
+import { groupFilesForUpload, getFilePath } from "./file-tree-utils";
 
 export function useFileUpload(roomId: string) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
@@ -72,14 +73,31 @@ export function useFileUpload(roomId: string) {
       const validationResult = await preValidateUploadAction(roomId, filesToValidate);
       if (!validationResult.success) {
         let errorMessage = "Upload validation failed.";
-        if (validationResult.error === "file-too-large") {
-          errorMessage = `File "${validationResult.fileName}" exceeds the 2 GB individual file limit.`;
-        } else if (validationResult.error === "user-quota-exceeded") {
-          errorMessage = "Your personal storage quota (5 GB) is exceeded.";
-        } else if (validationResult.error === "room-quota-exceeded") {
+        const err = validationResult.error;
+        const file = validationResult.fileName;
+
+        if (err === "too-many-files") {
+          errorMessage = `That upload contains more than ${LIMITS.MAX_FILES_PER_UPLOAD} files. Split the folder into smaller uploads or exclude generated folders such as node_modules.`;
+        } else if (err === "file-too-large") {
+          errorMessage = `File "${file}" exceeds the 2 GB individual file limit.`;
+        } else if (err === "path-too-long") {
+          errorMessage = `File path exceeds the maximum limit of ${LIMITS.MAX_PATH_LENGTH} characters. (File: ${file})`;
+        } else if (err === "invalid-path") {
+          errorMessage = `File path contains invalid characters or traversal attempts. (File: ${file})`;
+        } else if (err === "filename-too-long") {
+          errorMessage = `Filename exceeds the maximum limit of ${LIMITS.MAX_FILENAME_LENGTH} characters. (File: ${file})`;
+        } else if (err === "folder-depth-exceeded") {
+          errorMessage = `Folder depth exceeds the maximum limit of ${LIMITS.MAX_FOLDER_DEPTH} levels. (File: ${file})`;
+        } else if (err === "duplicate-path") {
+          errorMessage = `Duplicate file paths detected. (Path: ${file})`;
+        } else if (err === "conflicting-path") {
+          errorMessage = `Conflicting paths detected: a path cannot be both a file and a folder. (Path: ${file})`;
+        } else if (err === "user-quota-exceeded") {
+          errorMessage = "Your personal storage quota (3 GB) is exceeded.";
+        } else if (err === "room-quota-exceeded") {
           errorMessage = "The room storage quota (5 GB) is exceeded.";
-        } else if (validationResult.error === "upload-rate-limit-exceeded") {
-          errorMessage = "Upload rate limit exceeded. You can initiate up to 200 files per minute.";
+        } else if (err === "upload-rate-limit-exceeded") {
+          errorMessage = `Upload rate limit exceeded. You can initiate up to ${LIMITS.MAX_UPLOAD_SESSIONS_PER_MIN} upload sessions per minute.`;
         }
         
         toast.error(errorMessage);
@@ -201,13 +219,12 @@ export function useFileUpload(roomId: string) {
   }
 
   async function handleUploadStart(fileList: File[]) {
-    let validFiles = fileList.filter((file) => file.size >= 0);
+    const validFiles = fileList.filter((file) => {
+      if (file.size < 0) return false;
+      const path = getFilePath(file);
+      return !isExcludedPath(path);
+    });
     if (validFiles.length === 0) return;
-
-    if (validFiles.length > MAX_UPLOAD_FILES) {
-      toast.warning(`Too many files selected. Only the first ${MAX_UPLOAD_FILES} will be uploaded.`);
-      validFiles = validFiles.slice(0, MAX_UPLOAD_FILES);
-    }
 
     const uploadGroups = groupFilesForUpload(validFiles);
     await Promise.all(uploadGroups.map((group) => executeGroupUpload(group)));

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { MAX_BULK_SELECTION } from "@/lib/constants";
 import {
   deleteFileAction,
   deleteFilesAction,
@@ -40,6 +39,8 @@ import { FileRow } from "./files/file-row";
 import { FolderRow } from "./files/folder-row";
 import { FileRenameDialog, FolderRenameDialog } from "./files/rename-dialogs";
 import type { FolderItem } from "./files/types";
+
+const MAX_BULK_SELECTION = 50;
 
 interface FilesPanelProps {
   roomId: string;

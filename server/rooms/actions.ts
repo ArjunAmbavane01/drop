@@ -8,6 +8,7 @@ import { getDb } from "@/db";
 import { LIMITS } from "@/lib/limits";
 import { getRedis, getJoinRateLimiter } from "@/lib/ratelimit";
 import { validateUploadQuota } from "@/server/rooms/quota";
+import { isExcludedPath } from "@/lib/exclusions";
 import {
   users,
   rooms,
@@ -19,7 +20,7 @@ import {
 import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomAccess, requireRoomOwner } from "@/server/rooms/auth";
 import { createRoomEvent } from "@/server/rooms/events";
-import { createRoomCode } from "@/lib/utils/room";
+import { createRoomCode } from "@/lib/room";
 import {
   createRoomSchema,
   joinRoomSchema,
@@ -98,7 +99,7 @@ export async function joinRoomAction(input: JoinRoomInput) {
 
   const { success } = await getJoinRateLimiter().limit(session.user.id);
   if (!success) {
-    throw new Error("Join rate limit exceeded. You can join up to 10 rooms per minute.");
+    throw new Error(`Join rate limit exceeded. You can join up to ${LIMITS.JOIN_LIMIT_PER_MIN} rooms per minute.`);
   }
 
   const [room] = await getDb()
@@ -695,11 +696,13 @@ export async function preValidateUploadAction(
   try {
     await validateUploadQuota(session.user.id, roomId, files);
 
+    const nonExcludedFiles = files.filter((f) => !isExcludedPath(f.name));
+
     const uploadToken = randomUUID();
     const tokenData = {
       userId: session.user.id,
       roomId,
-      files: files.map((f) => ({ name: f.name, size: f.size })),
+      files: nonExcludedFiles.map((f) => ({ name: f.name, size: f.size })),
     };
 
     await getRedis().set(
@@ -711,10 +714,11 @@ export async function preValidateUploadAction(
     return { success: true, uploadToken };
   } catch (error: any) {
     const message = error.message || "";
-    if (message.startsWith("file-too-large:")) {
-      const fileName = message.replace("file-too-large:", "");
-      return { success: false, error: "file-too-large", fileName };
+
+    if (message === "too-many-files") {
+      return { success: false, error: "too-many-files" };
     }
+
     if (
       [
         "room-quota-exceeded",
@@ -724,6 +728,24 @@ export async function preValidateUploadAction(
     ) {
       return { success: false, error: message };
     }
+
+    const colonErrors = [
+      "file-too-large",
+      "path-too-long",
+      "invalid-path",
+      "filename-too-long",
+      "folder-depth-exceeded",
+      "duplicate-path",
+      "conflicting-path",
+    ];
+
+    for (const prefix of colonErrors) {
+      if (message.startsWith(`${prefix}:`)) {
+        const detail = message.substring(prefix.length + 1);
+        return { success: false, error: prefix, detail, fileName: detail };
+      }
+    }
+
     return {
       success: false,
       error: "unknown",
