@@ -8,6 +8,8 @@ export type UploadGroup = {
     file: File;
     relativePath: string;
   }[];
+  skippedCount?: number;
+  includeExcluded?: boolean;
 };
 
 export type UploadState = {

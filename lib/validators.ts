@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateExclusionPattern } from "@/lib/exclusions";
 
 export const MAX_TEXT_LENGTH = 100_000;
 
@@ -74,3 +75,26 @@ export type UpdateTextInput = z.infer<typeof updateTextSchema>;
 export type CompleteUploadInput = z.infer<typeof completeUploadSchema>;
 export type RenameFileInput = z.infer<typeof renameFileSchema>;
 export type RenameFolderInput = z.infer<typeof renameFolderSchema>;
+
+export const updateExclusionsSchema = z.object({
+  patterns: z
+    .array(z.string())
+    .max(100, "You can configure up to 100 patterns.")
+    .superRefine((patterns, ctx) => {
+      for (const pattern of patterns) {
+        const error = validateExclusionPattern(pattern);
+        if (error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Pattern "${pattern}": ${error}`,
+          });
+        }
+      }
+    })
+    .transform((patterns) => {
+      const trimmed = patterns.map((p) => p.trim());
+      return Array.from(new Set(trimmed)).filter((p) => p.length > 0);
+    }),
+});
+
+export type UpdateExclusionsInput = z.infer<typeof updateExclusionsSchema>;

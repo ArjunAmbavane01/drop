@@ -5,13 +5,26 @@ import { toast } from "sonner";
 import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
 import { LIMITS } from "@/lib/limits";
-import { isExcludedPath } from "@/lib/exclusions";
+import { compileExclusionMatcher } from "@/lib/exclusions";
 import type { UploadGroup, UploadState } from "./types";
-import { groupFilesForUpload, getFilePath } from "./file-tree-utils";
+import { groupFilesForUpload } from "./file-tree-utils";
 
-export function useFileUpload(roomId: string) {
+export function useFileUpload(roomId: string, exclusions: string[]) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+
+  const [pendingFolderUpload, setPendingFolderUpload] = useState<{
+    group: UploadGroup;
+    excludedCount: number;
+  } | null>(null);
+
+  const pendingResolverRef = useRef<((choice: "skip" | "include" | "cancel") => void) | null>(null);
+
+  function confirmFolderUpload(choice: "skip" | "include" | "cancel") {
+    if (pendingResolverRef.current) {
+      pendingResolverRef.current(choice);
+    }
+  }
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
@@ -70,7 +83,10 @@ export function useFileUpload(roomId: string) {
         size: f.file.size,
       }));
 
-      const validationResult = await preValidateUploadAction(roomId, filesToValidate);
+      const validationResult = await preValidateUploadAction(roomId, filesToValidate, {
+        isFolder: group.type === "folder",
+        includeExcluded: group.includeExcluded,
+      });
       if (!validationResult.success) {
         let errorMessage = "Upload validation failed.";
         const err = validationResult.error;
@@ -200,6 +216,10 @@ export function useFileUpload(roomId: string) {
         ),
       );
 
+      if (group.skippedCount && group.skippedCount > 0) {
+        toast.info(`Skipped ${group.skippedCount.toLocaleString()} files based on your upload exclusions.`);
+      }
+
       // Auto-dismiss completed upload notification bar after short delay
       setTimeout(() => {
         setUploads((prev) => prev.filter((u) => u.id !== group.id));
@@ -219,15 +239,48 @@ export function useFileUpload(roomId: string) {
   }
 
   async function handleUploadStart(fileList: File[]) {
-    const validFiles = fileList.filter((file) => {
-      if (file.size < 0) return false;
-      const path = getFilePath(file);
-      return !isExcludedPath(path);
-    });
+    const validFiles = fileList.filter((file) => file.size >= 0);
     if (validFiles.length === 0) return;
 
     const uploadGroups = groupFilesForUpload(validFiles);
-    await Promise.all(uploadGroups.map((group) => executeGroupUpload(group)));
+    const matcher = compileExclusionMatcher(exclusions);
+
+    for (const group of uploadGroups) {
+      if (group.type === "file") {
+        executeGroupUpload(group);
+      } else {
+        const excludedFiles = group.files.filter((f) => matcher(f.relativePath));
+        if (excludedFiles.length > 0) {
+          setPendingFolderUpload({
+            group,
+            excludedCount: excludedFiles.length,
+          });
+
+          const choice = await new Promise<"skip" | "include" | "cancel">((resolve) => {
+            pendingResolverRef.current = resolve;
+          });
+
+          setPendingFolderUpload(null);
+          pendingResolverRef.current = null;
+
+          if (choice === "skip") {
+            const nonExcludedFiles = group.files.filter((f) => !matcher(f.relativePath));
+            executeGroupUpload({
+              ...group,
+              files: nonExcludedFiles,
+              skippedCount: excludedFiles.length,
+            });
+          } else if (choice === "include") {
+            executeGroupUpload({
+              ...group,
+              includeExcluded: true,
+            });
+          }
+        } else {
+          executeGroupUpload(group);
+        }
+      }
+    }
   }
 
   function cancelUpload(id: string) {
@@ -316,5 +369,7 @@ export function useFileUpload(roomId: string) {
     handleDragLeave,
     cancelUpload,
     handleRetryUpload,
+    pendingFolderUpload,
+    confirmFolderUpload,
   };
 }

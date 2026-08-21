@@ -60,7 +60,7 @@ export async function POST(
       return jsonError("Unauthorized upload token.", 403);
     }
 
-    const matchingFileIndex = tokenData.files.findIndex((f: any) => 
+    const matchingFileIndex = tokenData.files.findIndex((f: { name: string; size: number }) => 
       f.size === sizeBytes
     );
     if (matchingFileIndex === -1) {

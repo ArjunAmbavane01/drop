@@ -3,7 +3,6 @@ import { uploadedFiles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { LIMITS } from "@/lib/limits";
 import { getUploadRateLimiter } from "@/lib/ratelimit";
-import { isExcludedPath } from "@/lib/exclusions";
 
 export async function getUserStorageUsage(userId: string): Promise<number> {
   const [result] = await getDb()
@@ -24,11 +23,8 @@ export async function getRoomStorageUsage(roomId: string): Promise<number> {
 export async function validateUploadQuota(
   userId: string,
   roomId: string,
-  rawFiles: { name: string; size: number }[]
+  files: { name: string; size: number }[]
 ) {
-  // 0. Exclude files/folders based on exclusions first
-  const files = rawFiles.filter((f) => !isExcludedPath(f.name));
-
   // If no files to upload, return early
   if (files.length === 0) {
     return;

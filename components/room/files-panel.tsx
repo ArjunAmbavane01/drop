@@ -1,8 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { validateExclusionPattern } from "@/lib/exclusions";
 import {
   deleteFileAction,
   deleteFilesAction,
@@ -12,6 +22,9 @@ import {
   renameFileAction,
   renameFolderAction,
   refreshRoomFilesAction,
+  getUserExclusionsAction,
+  saveExclusionsAction,
+  restoreDefaultExclusionsAction,
 } from "@/server/rooms/actions";
 import type { RoomFile } from "@/types/rooms";
 import { Files } from "@/components/animate-ui/components/radix/files";
@@ -80,6 +93,45 @@ export function FilesPanel({
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
+  const [exclusions, setExclusions] = useState<string[]>([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchExclusions() {
+      try {
+        const data = await getUserExclusionsAction();
+        setExclusions(data.exclusions);
+      } catch {
+        toast.error("Failed to load upload exclusions.");
+      }
+    }
+    fetchExclusions();
+  }, []);
+
+  async function handleSaveExclusions(newPatterns: string[]) {
+    try {
+      const res = await saveExclusionsAction({ patterns: newPatterns });
+      setExclusions(res.exclusions);
+      toast.success("Upload exclusions updated.");
+    } catch (err) {
+      const errorVal = err as Error;
+      toast.error(errorVal.message || "Failed to update exclusions.");
+      throw err;
+    }
+  }
+
+  async function handleRestoreExclusions() {
+    try {
+      const res = await restoreDefaultExclusionsAction();
+      setExclusions(res.exclusions);
+      toast.success("Default upload exclusions restored.");
+    } catch (err) {
+      const errorVal = err as Error;
+      toast.error(errorVal.message || "Failed to restore default exclusions.");
+      throw err;
+    }
+  }
+
   const {
     uploads,
     isDragging,
@@ -92,7 +144,9 @@ export function FilesPanel({
     handleDragLeave,
     cancelUpload,
     handleRetryUpload,
-  } = useFileUpload(roomId);
+    pendingFolderUpload,
+    confirmFolderUpload,
+  } = useFileUpload(roomId, exclusions);
 
   const groupedItems = useMemo(() => groupFilesAndFolders(files), [files]);
   const currentItemIds = useMemo(() => {
@@ -445,6 +499,17 @@ export function FilesPanel({
             <Button
               variant="ghost"
               size="xs"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Upload Exclusions"
+              className="gap-1.5 cursor-pointer"
+            >
+              <Settings className="size-3.5" />
+              <span>Exclusions</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={handleRefreshFiles}
               disabled={isRefreshing}
             >
@@ -535,6 +600,320 @@ export function FilesPanel({
         onClose={() => setRenameFolderTarget(null)}
         onSubmit={handleRenameFolderSubmit}
       />
+
+      {/* Exclusions Settings Dialog */}
+      {isSettingsOpen && (
+        <ExclusionsDialog
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          exclusions={exclusions}
+          onSave={handleSaveExclusions}
+          onRestore={handleRestoreExclusions}
+        />
+      )}
+
+      {/* Confirmation dialog for folder uploads with exclusions */}
+      <Dialog open={Boolean(pendingFolderUpload)} onOpenChange={(open) => !open && confirmFolderUpload("cancel")}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload folder with exclusions?</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-2">
+              This folder contains <strong>{pendingFolderUpload?.excludedCount.toLocaleString()}</strong> files matching your exclusions. Would you like to skip them, or temporarily include them for this upload?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => confirmFolderUpload("cancel")}
+              className="cursor-pointer"
+            >
+              Cancel Upload
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => confirmFolderUpload("include")}
+              className="cursor-pointer"
+            >
+              Include All Files
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => confirmFolderUpload("skip")}
+              className="cursor-pointer"
+            >
+              Skip Excluded (Recommended)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+interface ExclusionsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  exclusions: string[];
+  onSave: (newExclusions: string[]) => Promise<void>;
+  onRestore: () => Promise<void>;
+}
+
+export function ExclusionsDialog({
+  isOpen,
+  onClose,
+  exclusions,
+  onSave,
+  onRestore,
+}: ExclusionsDialogProps) {
+  const [localPatterns, setLocalPatterns] = useState<string[]>(exclusions);
+  const [newPattern, setNewPattern] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAdd = () => {
+    const trimmed = newPattern.trim();
+    if (!trimmed) return;
+    const err = validateExclusionPattern(trimmed);
+    if (err) {
+      setError(err);
+      return;
+    }
+    if (localPatterns.includes(trimmed)) {
+      setError("Pattern already exists.");
+      return;
+    }
+    if (localPatterns.length >= 100) {
+      setError("Maximum of 100 patterns allowed.");
+      return;
+    }
+    setLocalPatterns([...localPatterns, trimmed]);
+    setNewPattern("");
+    setError(null);
+  };
+
+  const handleRemove = (index: number) => {
+    setLocalPatterns(localPatterns.filter((_, i) => i !== index));
+    if (editingIndex === index) {
+      setEditingIndex(null);
+    }
+    setError(null);
+  };
+
+  const handleStartEdit = (index: number) => {
+    setEditingIndex(index);
+    setEditingValue(localPatterns[index]);
+    setError(null);
+  };
+
+  const handleSaveEdit = (index: number) => {
+    const trimmed = editingValue.trim();
+    if (!trimmed) return;
+    const err = validateExclusionPattern(trimmed);
+    if (err) {
+      setError(err);
+      return;
+    }
+    const exists = localPatterns.some((p, i) => p === trimmed && i !== index);
+    if (exists) {
+      setError("Pattern already exists.");
+      return;
+    }
+    const next = [...localPatterns];
+    next[index] = trimmed;
+    setLocalPatterns(next);
+    setEditingIndex(null);
+    setError(null);
+  };
+
+  const handleRestore = async () => {
+    setError(null);
+    setSaving(true);
+    try {
+      await onRestore();
+      onClose();
+    } catch (err) {
+      const errorVal = err as Error;
+      setError(errorVal.message || "Failed to restore defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    setSaving(true);
+    try {
+      await onSave(localPatterns);
+      onClose();
+    } catch (err) {
+      const errorVal = err as Error;
+      setError(errorVal.message || "Failed to save exclusions.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="max-w-md max-h-[80vh] flex flex-col p-5 gap-4">
+        <DialogHeader className="space-y-1">
+          <DialogTitle>Upload Exclusions</DialogTitle>
+          <DialogDescription className="text-xs">
+            Skip matching files/folders recursively during folder uploads.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <div className="text-[11px] font-medium text-destructive bg-destructive/10 px-2.5 py-1.5 rounded-lg border border-destructive/20 select-none">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Input
+            value={newPattern}
+            onChange={(e) => {
+              setNewPattern(e.target.value);
+              setError(null);
+            }}
+            placeholder="e.g. node_modules, *.log"
+            className="h-8 text-xs flex-1"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+          />
+          <Button
+            size="xs"
+            onClick={handleAdd}
+            className="h-8 font-semibold gap-1 shrink-0 cursor-pointer"
+          >
+            <Plus className="size-3.5" />
+            Add
+          </Button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5 space-y-1">
+          {localPatterns.length === 0 ? (
+            <div className="text-[11px] text-muted-foreground text-center py-6 select-none">
+              No exclusions configured. All files will be uploaded.
+            </div>
+          ) : (
+            localPatterns.map((pattern, index) => {
+              const isEditing = editingIndex === index;
+              return (
+                <div
+                  key={pattern + "-" + index}
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted/50 dark:hover:bg-muted/30 group/row"
+                >
+                  {isEditing ? (
+                    <Input
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      className="h-7 text-xs flex-1 py-0 px-2"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveEdit(index);
+                        } else if (e.key === "Escape") {
+                          setEditingIndex(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="text-xs font-mono truncate select-all">{pattern}</span>
+                  )}
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isEditing ? (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"
+                          onClick={() => handleSaveEdit(index)}
+                        >
+                          <Check className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-muted-foreground hover:bg-muted cursor-pointer"
+                          onClick={() => setEditingIndex(null)}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted cursor-pointer"
+                          onClick={() => handleStartEdit(index)}
+                        >
+                          <Pencil className="size-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10 cursor-pointer"
+                          onClick={() => handleRemove(index)}
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <DialogFooter className="flex flex-row items-center justify-between sm:justify-between w-full mt-2 gap-2 border-t pt-3 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={handleRestore}
+            disabled={saving}
+            className="text-xs gap-1 cursor-pointer"
+          >
+            <RotateCcw className="size-3.5" />
+            Restore Defaults
+          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="xs"
+              onClick={onClose}
+              disabled={saving}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="cursor-pointer"
+            >
+              {saving ? <Spinner className="size-3.5" /> : "Save"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

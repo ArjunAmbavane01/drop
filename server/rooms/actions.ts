@@ -8,7 +8,8 @@ import { getDb } from "@/db";
 import { LIMITS } from "@/lib/limits";
 import { getRedis, getJoinRateLimiter } from "@/lib/ratelimit";
 import { validateUploadQuota } from "@/server/rooms/quota";
-import { isExcludedPath } from "@/lib/exclusions";
+import { DEFAULT_EXCLUSIONS, compileExclusionMatcher } from "@/lib/exclusions";
+import { updateExclusionsSchema, type UpdateExclusionsInput } from "@/lib/validators";
 import {
   users,
   rooms,
@@ -688,21 +689,32 @@ export async function getFileDownloadUrlAction(fileId: string) {
 
 export async function preValidateUploadAction(
   roomId: string,
-  files: { name: string; size: number }[]
+  files: { name: string; size: number }[],
+  options?: { isFolder?: boolean; includeExcluded?: boolean }
 ) {
   const session = await requireRequestSession();
   await requireRoomAccess(roomId, session.user.id);
 
   try {
-    await validateUploadQuota(session.user.id, roomId, files);
+    let filesToValidate = files;
+    if (options?.isFolder && !options?.includeExcluded) {
+      const [user] = await getDb()
+        .select({ uploadExclusions: users.uploadExclusions })
+        .from(users)
+        .where(eq(users.id, session.user.id))
+        .limit(1);
+      const exclusions = user?.uploadExclusions ?? DEFAULT_EXCLUSIONS;
+      const matcher = compileExclusionMatcher(exclusions);
+      filesToValidate = files.filter((f) => !matcher(f.name));
+    }
 
-    const nonExcludedFiles = files.filter((f) => !isExcludedPath(f.name));
+    await validateUploadQuota(session.user.id, roomId, filesToValidate);
 
     const uploadToken = randomUUID();
     const tokenData = {
       userId: session.user.id,
       roomId,
-      files: nonExcludedFiles.map((f) => ({ name: f.name, size: f.size })),
+      files: filesToValidate.map((f) => ({ name: f.name, size: f.size })),
     };
 
     await getRedis().set(
@@ -712,8 +724,9 @@ export async function preValidateUploadAction(
     );
 
     return { success: true, uploadToken };
-  } catch (error: any) {
-    const message = error.message || "";
+  } catch (error) {
+    const err = error as Error;
+    const message = err.message || "";
 
     if (message === "too-many-files") {
       return { success: false, error: "too-many-files" };
@@ -752,4 +765,46 @@ export async function preValidateUploadAction(
       message: "An unexpected error occurred during pre-validation.",
     };
   }
+}
+
+export async function getUserExclusionsAction() {
+  const session = await requireRequestSession();
+  const [userRecord] = await getDb()
+    .select({ uploadExclusions: users.uploadExclusions })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  const isCustomized = userRecord?.uploadExclusions !== null;
+  const exclusions = userRecord?.uploadExclusions ?? DEFAULT_EXCLUSIONS;
+
+  return { exclusions, isCustomized };
+}
+
+export async function saveExclusionsAction(input: UpdateExclusionsInput) {
+  const session = await requireRequestSession();
+  const validatedInput = updateExclusionsSchema.parse(input);
+
+  await getDb()
+    .update(users)
+    .set({
+      uploadExclusions: validatedInput.patterns,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, session.user.id));
+
+  return { success: true, exclusions: validatedInput.patterns };
+}
+
+export async function restoreDefaultExclusionsAction() {
+  const session = await requireRequestSession();
+  await getDb()
+    .update(users)
+    .set({
+      uploadExclusions: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, session.user.id));
+
+  return { success: true, exclusions: DEFAULT_EXCLUSIONS };
 }
