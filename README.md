@@ -1,47 +1,64 @@
 # Drop
 
-Drop is a secure, room-based file and text sharing application. It allows users to quickly spin up a temporary space to transfer data between devices.
+A secure, room-based file and text sharing application designed for reliable data transfer between devices.
 
-Users can create or join rooms, share text snippets, and upload individual files or entire folders to access them from any other device connected to the same room.
+## Features
 
-## Security
+- Temporary, room-based workspaces for quick access across devices.
+- End-to-end client-side encryption (AES-256-GCM) with RSA-OAEP key wrapping. The server and storage provider only receive encrypted file contents and wrapped keys.
+- Support for individual file and bulk folder uploads.
+- Real-time text snippet sharing.
 
-Files are encrypted client-side using AES-256-GCM. The symmetric file keys are wrapped using RSA-OAEP before being sent to the server. The server and storage provider only ever receive and store encrypted file contents and wrapped keys.
+## Tech stack
 
-## Stack
+- **Framework**: Next.js, React, TypeScript
+- **Database**: PostgreSQL (Neon), Drizzle ORM
+- **Authentication**: Better Auth
+- **Storage**: Cloudflare R2
+- **Caching & Rate Limiting**: Upstash Redis
+- **Styling**: Tailwind CSS, shadcn/ui
 
-- Next.js, React, TypeScript
-- Neon (PostgreSQL) & Drizzle ORM
-- Upstash Redis
-- Better Auth
-- Storage: Cloudflare R2
-- Hosting: Vercel
+## Getting started
 
-## Local Development
+### Prerequisites
 
-Install dependencies:
+- Node.js (v20 or newer)
+- pnpm
+
+### Setup
+
+1. Clone the repository and install dependencies:
 
 ```bash
+git clone https://github.com/ArjunAmbavane01/drop.git
+cd drop
 pnpm install
 ```
 
-Set up the required environment variables in a `.env` file:
+2. Set up environment variables:
 
-```env
-DATABASE_URL=
-BETTER_AUTH_SECRET=
-BETTER_AUTH_URL=http://localhost:3000
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
-R2_PUBLIC_BASE_URL=
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
+```bash
+cp .env.example .env
 ```
 
-Run the development server:
+3. Initialize the database schema:
+
+```bash
+pnpm db:push
+```
+
+4. Start the development server:
 
 ```bash
 pnpm dev
 ```
+
+The application will be accessible at `http://localhost:3000`.
+
+## Project structure
+
+- `app/`: Next.js App Router pages and API routes.
+- `components/`: Reusable React components and UI configuration.
+- `db/`: Drizzle ORM schema and database configuration.
+- `lib/`: Shared utilities and client-side helpers.
+- `server/`: Server-side business logic and handlers.

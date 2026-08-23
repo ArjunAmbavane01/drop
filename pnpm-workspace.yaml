@@ -20,3 +20,4 @@ minimumReleaseAgeExclude:
   - '@aws-sdk/signature-v4-multi-region@3.996.43'
   - '@aws-sdk/token-providers@3.1098.0'
   - lucide-react@1.28.0
+minimumReleaseAge: 4320
