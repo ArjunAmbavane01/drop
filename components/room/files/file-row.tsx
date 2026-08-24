@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { FileItem as AnimateFileItem } from "@/components/animate-ui/components/radix/files";
-import { FileIconMap } from "../file-icons";
+import { FileIcon } from "../file-icons";
 import { cn } from "@/lib/utils";
 
 interface FileRowProps {
@@ -35,9 +35,6 @@ export function FileRow({
   isSelected = false,
   onToggleSelect,
 }: FileRowProps) {
-  const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
-  const Icon = FileIconMap[ext] || File;
-
   const ItemIcon = () => (
     <div
       className="size-8 flex items-center justify-center relative select-none shrink-0"
@@ -81,7 +78,10 @@ export function FileRow({
             className="size-8 rounded object-cover border border-border/60"
           />
         ) : (
-          <Icon className="size-5 text-muted-foreground" />
+          <FileIcon
+            fileName={file.fileName}
+            className="size-5 text-muted-foreground"
+          />
         )}
       </div>
     </div>
@@ -90,7 +90,7 @@ export function FileRow({
   return (
     <AnimateFileItem
       icon={ItemIcon}
-      className={cn("w-full transition-colors cursor-pointer", isSelected && "bg-muted/50 rounded-lg")}
+      className={cn("w-full transition-colors cursor-pointer")}
     >
       <div
         className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3 cursor-pointer select-none"

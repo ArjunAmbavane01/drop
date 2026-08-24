@@ -462,11 +462,14 @@ export function FilesPanel({
                   render={
                     <Button
                       variant="destructive"
-                      size="xs"
+                      size="sm"
                       disabled={isBulkDeleting}
+                      className="size-9 px-0 sm:size-auto sm:px-3"
                     >
                       {isBulkDeleting ? <Spinner /> : <Trash2 />}
-                      <span className="flex items-center gap-1"><span className="hidden sm:block">Delete</span> ({selectedIds.size})</span>
+                      <span className="hidden sm:inline">
+                        Delete ({selectedIds.size})
+                      </span>
                     </Button>
                   }
                 />
@@ -495,16 +498,15 @@ export function FilesPanel({
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => setIsSettingsOpen(true)}
-              title="Upload Exclusions"
             >
               <Settings />
             </Button>
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={handleRefreshFiles}
               disabled={isRefreshing}
             >
@@ -604,33 +606,23 @@ export function FilesPanel({
 
       {/* Confirmation dialog for folder uploads with exclusions */}
       <Dialog open={Boolean(pendingFolderUpload)} onOpenChange={(open) => !open && confirmFolderUpload("cancel")}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Upload folder with exclusions?</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground mt-2">
-              This folder contains <strong>{pendingFolderUpload?.excludedCount.toLocaleString()}</strong> files matching your exclusions. Would you like to skip them, or temporarily include them for this upload?
+            <DialogDescription>
+              This folder contains <span className="font-semibold text-foreground">{pendingFolderUpload?.excludedCount.toLocaleString()}</span> files matching your exclusions. Would you like to skip them?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+          <DialogFooter>
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => confirmFolderUpload("cancel")}
               className="cursor-pointer"
             >
-              Cancel Upload
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => confirmFolderUpload("include")}
-              className="cursor-pointer"
-            >
-              Include All Files
+              Cancel
             </Button>
             <Button
               variant="default"
-              size="sm"
               onClick={() => confirmFolderUpload("skip")}
               className="cursor-pointer"
             >
@@ -749,21 +741,21 @@ export function ExclusionsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="max-w-md max-h-[80vh] flex flex-col p-5 gap-4">
-        <DialogHeader className="space-y-1">
+      <DialogContent>
+        <DialogHeader>
           <DialogTitle>Upload Exclusions</DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription>
             Skip matching files/folders recursively during folder uploads.
           </DialogDescription>
         </DialogHeader>
 
         {error && (
-          <div className="text-[11px] font-medium text-destructive bg-destructive/10 px-2.5 py-1.5 rounded-lg border border-destructive/20 select-none">
+          <div className="text-xs font-medium text-destructive bg-destructive/10 px-2.5 py-1.5 rounded-lg border border-destructive/20 select-none">
             {error}
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 ">
           <Input
             value={newPattern}
             onChange={(e) => {
@@ -771,7 +763,7 @@ export function ExclusionsDialog({
               setError(null);
             }}
             placeholder="e.g. node_modules, *.log"
-            className="h-8 text-xs flex-1"
+            className="h-9 text-sm  min-w-0"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -780,18 +772,18 @@ export function ExclusionsDialog({
             }}
           />
           <Button
-            size="xs"
+            size={"sm"}
+            className="h-9"
             onClick={handleAdd}
-            className="h-8 font-semibold gap-1 shrink-0 cursor-pointer"
           >
-            <Plus className="size-3.5" />
+            <Plus />
             Add
           </Button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5 space-y-1">
+        <div className="max-h-64 overflow-y-auto border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5 space-y-1">
           {localPatterns.length === 0 ? (
-            <div className="text-[11px] text-muted-foreground text-center py-6 select-none">
+            <div className="text-xs text-muted-foreground text-center py-5 select-none text-balance">
               No exclusions configured. All files will be uploaded.
             </div>
           ) : (
@@ -800,13 +792,13 @@ export function ExclusionsDialog({
               return (
                 <div
                   key={pattern + "-" + index}
-                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted/50 dark:hover:bg-muted/30 group/row"
+                  className="flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-muted/50 dark:hover:bg-muted/30 group/row transition-colors duration-300"
                 >
                   {isEditing ? (
                     <Input
                       value={editingValue}
                       onChange={(e) => setEditingValue(e.target.value)}
-                      className="h-7 text-xs flex-1 py-0 px-2"
+                      className="h-8 text-xs"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
@@ -818,7 +810,7 @@ export function ExclusionsDialog({
                       }}
                     />
                   ) : (
-                    <span className="text-xs font-mono truncate select-all">{pattern}</span>
+                    <span className="text-sm truncate select-all">{pattern}</span>
                   )}
 
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -827,18 +819,18 @@ export function ExclusionsDialog({
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-6 text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"
+                          className="text-emerald-500 hover:bg-emerald-500/10"
                           onClick={() => handleSaveEdit(index)}
                         >
-                          <Check className="size-3.5" />
+                          <Check />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-6 text-muted-foreground hover:bg-muted cursor-pointer"
+                          className="text-muted-foreground hover:bg-muted"
                           onClick={() => setEditingIndex(null)}
                         >
-                          <X className="size-3.5" />
+                          <X />
                         </Button>
                       </>
                     ) : (
@@ -846,18 +838,18 @@ export function ExclusionsDialog({
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-6 opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted cursor-pointer"
+                          className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted"
                           onClick={() => handleStartEdit(index)}
                         >
-                          <Pencil className="size-3" />
+                          <Pencil/>
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="size-6 opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10 cursor-pointer"
+                          className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10"
                           onClick={() => handleRemove(index)}
                         >
-                          <Trash2 className="size-3" />
+                          <Trash2/>
                         </Button>
                       </>
                     )}
@@ -868,38 +860,35 @@ export function ExclusionsDialog({
           )}
         </div>
 
-        <DialogFooter className="flex flex-row items-center justify-between sm:justify-between w-full mt-2 gap-2 border-t pt-3 shrink-0">
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-between w-full">
           <Button
             type="button"
             variant="ghost"
-            size="xs"
             onClick={handleRestore}
             disabled={saving}
-            className="text-xs gap-1 cursor-pointer"
+            className="w-full sm:w-fit"
           >
-            <RotateCcw className="size-3.5" />
+            <RotateCcw />
             Restore Defaults
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-fit">
             <Button
               type="button"
               variant="secondary"
-              size="xs"
               onClick={onClose}
               disabled={saving}
-              className="cursor-pointer"
+              className="flex-1 sm:flex-none"
             >
               Cancel
             </Button>
             <Button
               type="button"
-              size="xs"
               onClick={handleSaveAll}
               disabled={saving}
-              className="cursor-pointer"
+              className="flex-1 sm:flex-none"
             >
-              {saving ? <Spinner className="size-3.5" /> : "Save"}
+              {saving ? <Spinner /> : "Save"}
             </Button>
           </div>
         </DialogFooter>

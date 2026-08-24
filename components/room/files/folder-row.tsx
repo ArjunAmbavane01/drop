@@ -100,7 +100,7 @@ export function FolderRow({
   return (
     <AnimateFolderItem
       value={folder.uploadId}
-      className={cn("rounded-lg border-none transition-colors w-full", isSelected && "bg-muted/50")}
+      className={cn("rounded-lg border-none transition-colors w-full")}
     >
       <AnimateFolderTrigger
         icon={FolderItemIcon}

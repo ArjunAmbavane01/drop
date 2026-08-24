@@ -62,25 +62,27 @@ function FolderTrigger({
 }: FolderTriggerProps) {
   return (
     <FolderHeaderPrimitive>
-      <FolderTriggerPrimitive className="w-full text-start">
-        <FolderHighlightPrimitive>
-          <FolderPrimitive className="flex items-center gap-3 p-2 rounded-lg group/folder-item">
-            {icon ? (
-              icon
-            ) : (
-              <FolderIconPrimitive
-                closeIcon={<FolderIcon className="size-5" />}
-                openIcon={<FolderOpenIcon className="size-5" />}
-              />
-            )}
-            <FileLabelPrimitive
-              className={cn('text-sm', className)}
-              {...props}
-            >
-              {children}
-            </FileLabelPrimitive>
-          </FolderPrimitive>
-        </FolderHighlightPrimitive>
+      <FolderTriggerPrimitive asChild>
+        <div className="w-full text-start">
+          <FolderHighlightPrimitive>
+            <FolderPrimitive className="flex items-center gap-3 p-2 rounded-lg group/folder-item">
+              {icon ? (
+                icon
+              ) : (
+                <FolderIconPrimitive
+                  closeIcon={<FolderIcon className="size-5" />}
+                  openIcon={<FolderOpenIcon className="size-5" />}
+                />
+              )}
+              <FileLabelPrimitive
+                className={cn('text-sm', className)}
+                {...props}
+              >
+                {children}
+              </FileLabelPrimitive>
+            </FolderPrimitive>
+          </FolderHighlightPrimitive>
+        </div>
       </FolderTriggerPrimitive>
     </FolderHeaderPrimitive>
   );

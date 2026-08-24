@@ -31,6 +31,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
+import { Bash } from "../ui/svgs/bash";
+import { BashDark } from "../ui/svgs/bashDark";
+import { Json } from "../ui/svgs/json";
+import { Mdx } from "../ui/svgs/markdown";
+import { MdxDark } from "../ui/svgs/markdownDark";
 
 export function RoomHeader({
   room,

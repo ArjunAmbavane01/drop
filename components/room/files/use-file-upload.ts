@@ -18,9 +18,9 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     excludedCount: number;
   } | null>(null);
 
-  const pendingResolverRef = useRef<((choice: "skip" | "include" | "cancel") => void) | null>(null);
+  const pendingResolverRef = useRef<((choice: "skip" | "cancel") => void) | null>(null);
 
-  function confirmFolderUpload(choice: "skip" | "include" | "cancel") {
+  function confirmFolderUpload(choice: "skip" | "cancel") {
     if (pendingResolverRef.current) {
       pendingResolverRef.current(choice);
     }
@@ -256,7 +256,7 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
             excludedCount: excludedFiles.length,
           });
 
-          const choice = await new Promise<"skip" | "include" | "cancel">((resolve) => {
+          const choice = await new Promise<"skip" | "cancel">((resolve) => {
             pendingResolverRef.current = resolve;
           });
 
@@ -269,11 +269,6 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
               ...group,
               files: nonExcludedFiles,
               skippedCount: excludedFiles.length,
-            });
-          } else if (choice === "include") {
-            executeGroupUpload({
-              ...group,
-              includeExcluded: true,
             });
           }
         } else {

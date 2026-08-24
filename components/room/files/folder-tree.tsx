@@ -134,7 +134,7 @@ export function FolderTree({
           <AnimateFileItem
             key={file.id}
             icon={ItemIcon}
-            className={cn("group w-full transition-colors cursor-pointer", isSelected && "bg-muted/50 rounded-lg")}
+            className={cn("group w-full transition-colors cursor-pointer")}
           >
             <div
               className="flex items-center justify-between w-full min-w-0 gap-2 cursor-pointer select-none"
