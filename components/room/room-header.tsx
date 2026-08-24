@@ -30,12 +30,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useRouter } from "next/navigation";
-import { Bash } from "../ui/svgs/bash";
-import { BashDark } from "../ui/svgs/bashDark";
-import { Json } from "../ui/svgs/json";
-import { Mdx } from "../ui/svgs/markdown";
-import { MdxDark } from "../ui/svgs/markdownDark";
+import Link from "next/link";
 
 export function RoomHeader({
   room,
@@ -54,8 +49,6 @@ export function RoomHeader({
   onlineUserIds?: string[];
   currentUserId?: string;
 }) {
-  const router = useRouter();
-
   return (
     <header className="flex items-center justify-between gap-2 sm:gap-4 shrink-0">
       {/* Left side: Back button & Room Details */}
@@ -64,9 +57,9 @@ export function RoomHeader({
           <TooltipTrigger
             render={
               <Button
+                render={<Link href="/" prefetch={true} />}
                 size="icon-sm"
                 variant={"outline"}
-                onClick={() => { router.push("/") }}
                 aria-label="Back"
               >
                 <ArrowLeft />

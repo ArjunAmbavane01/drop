@@ -9,28 +9,6 @@ const Pdf = (props: SVGProps<SVGSVGElement>) => (
       fontFamily="sans-serif"
       overflow="visible"
       paintOrder="markers fill stroke"
-      style={{
-        lineHeight: "normal",
-        fontVariantLigatures: "normal",
-        fontVariantPosition: "normal",
-        fontVariantCaps: "normal",
-        fontVariantNumeric: "normal",
-        fontVariantAlternates: "normal",
-        fontFeatureSettings: "normal",
-        textIndent: "0",
-        textAlign: "start",
-        textDecorationLine: "none",
-        textDecorationStyle: "solid",
-        textDecorationColor: "#000",
-        textTransform: "none",
-        textOrientation: "mixed",
-        whiteSpace: "normal",
-        shapePadding: "0",
-        isolation: "auto",
-        mixBlendMode: "normal",
-        solidColor: "#000",
-        solidOpacity: "1",
-      }}
       transform="translate(53.548 -183.975) scale(1.4843)"
     />
     <path
@@ -40,28 +18,6 @@ const Pdf = (props: SVGProps<SVGSVGElement>) => (
       fontFamily="sans-serif"
       overflow="visible"
       paintOrder="markers fill stroke"
-      style={{
-        lineHeight: "normal",
-        fontVariantLigatures: "normal",
-        fontVariantPosition: "normal",
-        fontVariantCaps: "normal",
-        fontVariantNumeric: "normal",
-        fontVariantAlternates: "normal",
-        fontFeatureSettings: "normal",
-        textIndent: "0",
-        textAlign: "start",
-        textDecorationLine: "none",
-        textDecorationStyle: "solid",
-        textDecorationColor: "#000",
-        textTransform: "none",
-        textOrientation: "mixed",
-        whiteSpace: "normal",
-        shapePadding: "0",
-        isolation: "auto",
-        mixBlendMode: "normal",
-        solidColor: "#000",
-        solidOpacity: "1",
-      }}
       transform="translate(53.548 -183.975) scale(1.4843)"
     />
     <path
@@ -73,7 +29,6 @@ const Pdf = (props: SVGProps<SVGSVGElement>) => (
       d="M-20.93 167.839h2.365q1.133 0 1.84.217.706.21 1.19.944.482.728.482 1.756 0 .945-.392 1.624-.392.678-1.056.98-.658.3-2.03.3h-.818v3.73h-1.581zm1.58 1.224v3.33h.785q1.05 0 1.448-.391.406-.392.406-1.274 0-.657-.266-1.063-.266-.413-.588-.504-.315-.098-1-.098zm5.508-1.224h2.148q1.56 0 2.49.552.938.553 1.414 1.645.483 1.091.483 2.42 0 1.4-.434 2.499-.427 1.091-1.316 1.763-.881.672-2.518.672h-2.267zm1.58 1.266v7.018h.659q1.378 0 2-.952.623-.958.623-2.553 0-3.513-2.623-3.513zm6.473-1.266h5.304v1.266h-3.723v2.855h2.981v1.266h-2.98v4.164H-5.79z"
       fontFamily="Franklin Gothic Medium Cond"
       letterSpacing="0"
-      style={{ lineHeight: "125%", InkscapeFontSpecification: "&quot" }}
       transform="translate(53.548 -183.975) scale(1.4843)"
       wordSpacing="4.26"
     />
