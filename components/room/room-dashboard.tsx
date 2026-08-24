@@ -137,7 +137,7 @@ export function RoomDashboard({
     });
   }, []);
 
-  useRoomEvents(snapshot.room.id, handleEvent, setOnlineUserIds);
+  useRoomEvents(snapshot.room.id, snapshot.lastEventId, handleEvent, setOnlineUserIds);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

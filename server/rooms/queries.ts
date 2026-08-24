@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { getDb } from "@/db";
-import { uploads, uploadedFiles, roomMemberships, rooms, roomTexts, users } from "@/db/schema";
+import { uploads, uploadedFiles, roomMemberships, rooms, roomTexts, users, roomEvents } from "@/db/schema";
 import type { RoomSnapshot } from "@/types/rooms";
 import { getR2PublicObjectUrl } from "@/server/r2/files";
 
@@ -85,6 +85,13 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
     .where(eq(uploadedFiles.roomId, roomId))
     .orderBy(desc(uploadedFiles.uploadedAt));
 
+  const [lastEvent] = await getDb()
+    .select({ id: roomEvents.id })
+    .from(roomEvents)
+    .where(eq(roomEvents.roomId, roomId))
+    .orderBy(desc(roomEvents.id))
+    .limit(1);
+
   return {
     room,
     text: {
@@ -110,6 +117,7 @@ export async function getRoomSnapshot(roomId: string, userId: string): Promise<R
       uploadId: file.uploadId,
       uploadName: file.uploadName,
     })),
+    lastEventId: lastEvent?.id ?? 0,
   };
 }
 

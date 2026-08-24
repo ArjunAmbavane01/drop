@@ -19,7 +19,7 @@ import {
   FileItem as AnimateFileItem,
   SubFiles as AnimateSubFiles,
 } from "@/components/animate-ui/components/radix/files";
-import { FileIconMap } from "../file-icons";
+import { FileIcon } from "../file-icons";
 import type { TreeNode } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -56,8 +56,8 @@ export function FolderTree({
               value={`${uploadId}-${node.relativePath}`}
               className="rounded-lg border-none transition-colors w-full"
             >
-              <AnimateFolderTrigger className="flex items-center justify-between w-full min-w-0 cursor-pointer py-1 gap-2">
-                <span className="truncate leading-none text-sm font-medium text-foreground min-w-0 flex-1" title={node.name}>{node.name}</span>
+              <AnimateFolderTrigger className="flex items-center justify-between w-full min-w-0 cursor-pointer py-1 gap-2 pb-1.5">
+                <span className="truncate leading-normal text-sm font-medium text-foreground min-w-0 flex-1" title={node.name}>{node.name}</span>
               </AnimateFolderTrigger>
               <AnimateFolderContent className="py-1 pl-2">
                 <FolderTree
@@ -76,8 +76,6 @@ export function FolderTree({
         }
 
         const file = node.file!;
-        const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
-        const Icon = FileIconMap[ext] || File;
         const isDeleting = deletingFileIds?.has(file.id);
         const isSelected = selectedIds?.has(file.id);
 
@@ -115,17 +113,17 @@ export function FolderTree({
                 isSelected ? "opacity-0" : "group-hover/file-item:opacity-0"
               )}
               >
-                {file.thumbnailUrl ? (
-                  <Image
-                    src={file.thumbnailUrl}
-                    alt={file.fileName}
-                    width={24}
-                    height={24}
-                    className="size-6 rounded object-cover border border-border/60"
-                  />
-                ) : (
-                  <Icon className="size-4 text-muted-foreground" />
-                )}
+              {file.thumbnailUrl ? (
+                <Image
+                  src={file.thumbnailUrl}
+                  alt={file.fileName}
+                  width={24}
+                  height={24}
+                  className="size-6 rounded object-cover border border-border/60"
+                />
+              ) : (
+                <FileIcon fileName={file.fileName} className="size-4 text-muted-foreground" />
+              )}
             </div>
           </div>
         );
@@ -144,8 +142,8 @@ export function FolderTree({
                 }
               }}
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="truncate leading-none text-sm font-medium text-foreground min-w-0" title={node.name}>{node.name}</span>
+              <div className="flex items-center gap-2 min-w-0 flex-1 pb-0.5">
+                <span className="truncate leading-normal text-sm font-medium text-foreground min-w-0" title={node.name}>{node.name}</span>
                 <span className="text-xs text-muted-foreground/60 shrink-0">
                   ({formatFileSize(file.sizeBytes)})
                 </span>

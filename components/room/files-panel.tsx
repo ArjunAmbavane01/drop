@@ -135,6 +135,7 @@ export function FilesPanel({
   const {
     uploads,
     isDragging,
+    isProcessing,
     fileInputRef,
     folderInputRef,
     handlePickerChange,
@@ -413,6 +414,7 @@ export function FilesPanel({
       <div className="shrink-0">
         <UploadDropzone
           isDragging={isDragging}
+          isProcessing={isProcessing}
           fileInputRef={fileInputRef}
           folderInputRef={folderInputRef}
           onPickerChange={handlePickerChange}
@@ -464,7 +466,7 @@ export function FilesPanel({
                       variant="destructive"
                       size="sm"
                       disabled={isBulkDeleting}
-                      className="size-9 px-0 sm:size-auto sm:px-3"
+                      className="size-9 px-0 sm:size-auto sm:h-8 sm:px-2"
                     >
                       {isBulkDeleting ? <Spinner /> : <Trash2 />}
                       <span className="hidden sm:inline">
@@ -781,7 +783,8 @@ export function ExclusionsDialog({
           </Button>
         </div>
 
-        <div className="max-h-64 overflow-y-auto border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5 space-y-1">
+        <ScrollArea className="h-64 border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5">
+          <div className="space-y-1 pr-3">
           {localPatterns.length === 0 ? (
             <div className="text-xs text-muted-foreground text-center py-5 select-none text-balance">
               No exclusions configured. All files will be uploaded.
@@ -817,6 +820,7 @@ export function ExclusionsDialog({
                     {isEditing ? (
                       <>
                         <Button
+                          key="save"
                           size="icon"
                           variant="ghost"
                           className="text-emerald-500 hover:bg-emerald-500/10"
@@ -825,6 +829,7 @@ export function ExclusionsDialog({
                           <Check />
                         </Button>
                         <Button
+                          key="cancel"
                           size="icon"
                           variant="ghost"
                           className="text-muted-foreground hover:bg-muted"
@@ -836,6 +841,7 @@ export function ExclusionsDialog({
                     ) : (
                       <>
                         <Button
+                          key="edit"
                           size="icon"
                           variant="ghost"
                           className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted"
@@ -844,6 +850,7 @@ export function ExclusionsDialog({
                           <Pencil/>
                         </Button>
                         <Button
+                          key="delete"
                           size="icon"
                           variant="ghost"
                           className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10"
@@ -858,7 +865,8 @@ export function ExclusionsDialog({
               );
             })
           )}
-        </div>
+          </div>
+        </ScrollArea>
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-between w-full">
           <Button
@@ -873,15 +881,6 @@ export function ExclusionsDialog({
           </Button>
 
           <div className="flex items-center gap-2 w-full sm:w-fit">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onClose}
-              disabled={saving}
-              className="flex-1 sm:flex-none"
-            >
-              Cancel
-            </Button>
             <Button
               type="button"
               onClick={handleSaveAll}

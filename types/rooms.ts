@@ -40,6 +40,7 @@ export type RoomSnapshot = {
   };
   members: RoomMember[];
   files: RoomFile[];
+  lastEventId: number;
 };
 
 export type RoomEvent =

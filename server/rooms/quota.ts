@@ -51,7 +51,6 @@ export async function validateUploadQuota(
     const segments = path.split("/").filter((s) => s !== "");
     
     if (
-      path.includes("..") ||
       path.includes("\\") ||
       path.startsWith("/") ||
       path.split("/").some((s) => s === "" || s === "." || s === "..")

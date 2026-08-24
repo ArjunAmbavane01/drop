@@ -12,6 +12,7 @@ import { groupFilesForUpload } from "./file-tree-utils";
 export function useFileUpload(roomId: string, exclusions: string[]) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [pendingFolderUpload, setPendingFolderUpload] = useState<{
     group: UploadGroup;
@@ -242,39 +243,47 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     const validFiles = fileList.filter((file) => file.size >= 0);
     if (validFiles.length === 0) return;
 
-    const uploadGroups = groupFilesForUpload(validFiles);
-    const matcher = compileExclusionMatcher(exclusions);
+    setIsProcessing(true);
+    // Yield to let the UI update (e.g. unfreeze browser dialog, show loading overlay)
+    await new Promise((r) => setTimeout(r, 50));
 
-    for (const group of uploadGroups) {
-      if (group.type === "file") {
-        executeGroupUpload(group);
-      } else {
-        const excludedFiles = group.files.filter((f) => matcher(f.relativePath));
-        if (excludedFiles.length > 0) {
-          setPendingFolderUpload({
-            group,
-            excludedCount: excludedFiles.length,
-          });
+    try {
+      const uploadGroups = groupFilesForUpload(validFiles);
+      const matcher = compileExclusionMatcher(exclusions);
 
-          const choice = await new Promise<"skip" | "cancel">((resolve) => {
-            pendingResolverRef.current = resolve;
-          });
-
-          setPendingFolderUpload(null);
-          pendingResolverRef.current = null;
-
-          if (choice === "skip") {
-            const nonExcludedFiles = group.files.filter((f) => !matcher(f.relativePath));
-            executeGroupUpload({
-              ...group,
-              files: nonExcludedFiles,
-              skippedCount: excludedFiles.length,
-            });
-          }
-        } else {
+      for (const group of uploadGroups) {
+        if (group.type === "file") {
           executeGroupUpload(group);
+        } else {
+          const excludedFiles = group.files.filter((f) => matcher(f.relativePath));
+          if (excludedFiles.length > 0) {
+            setPendingFolderUpload({
+              group,
+              excludedCount: excludedFiles.length,
+            });
+
+            const choice = await new Promise<"skip" | "cancel">((resolve) => {
+              pendingResolverRef.current = resolve;
+            });
+
+            setPendingFolderUpload(null);
+            pendingResolverRef.current = null;
+
+            if (choice === "skip") {
+              const nonExcludedFiles = group.files.filter((f) => !matcher(f.relativePath));
+              executeGroupUpload({
+                ...group,
+                files: nonExcludedFiles,
+                skippedCount: excludedFiles.length,
+              });
+            }
+          } else {
+            executeGroupUpload(group);
+          }
         }
       }
+    } finally {
+      setIsProcessing(false);
     }
   }
 
@@ -424,6 +433,7 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
   return {
     uploads,
     isDragging,
+    isProcessing,
     fileInputRef,
     folderInputRef,
     handlePickerChange,
