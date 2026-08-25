@@ -17,6 +17,7 @@ import {
   type SignInValues,
   type SignUpValues,
 } from "@/lib/validators";
+import Image from "next/image";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -67,11 +68,38 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
   return (
     <div className="flex flex-col items-center w-full space-y-8 sm:space-y-12 mb-5 sm:mb-8">
-      <div className="text-center space-y-5">
-        <h1 className="text-3xl font-medium tracking-tight">
-          {mode === "sign-up"
-            ? "Create your Drop account"
-            : "Sign in to Drop"}
+      <div className="flex flex-col items-center text-center space-y-5">
+        <h1 className="flex items-center gap-1 text-3xl font-medium tracking-tight">
+          {mode === "sign-up" ? (
+            <div className="flex items-center">
+              <span className="mr-2">Create your</span>
+              <Image
+                src="/drop-logo.png"
+                alt="Drop logo"
+                width={32}
+                height={32}
+                className="size-8"
+              />
+              <span className="font-logo font-semibold tracking-tight text-blue-500">
+                Drop
+              </span>
+              <span className="ml-2">account</span>
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <span className="mr-2">Sign in to</span>
+              <Image
+                src="/drop-logo.png"
+                alt="Drop logo"
+                width={32}
+                height={32}
+                className="size-8"
+              />
+              <span className="font-logo font-semibold tracking-tight text-blue-500">
+                Drop
+              </span>
+            </div>
+          )}
         </h1>
 
         <p className="text-muted-foreground text-balance">

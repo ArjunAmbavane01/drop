@@ -188,7 +188,7 @@ export function DashboardScreen({
               height={40}
               className="size-6 sm:size-8"
             />
-            <h1 className="text-2xl font-semibold tracking-tighter font-logo text-primary">Drop</h1>
+            <h1 className="text-2xl font-semibold tracking-tighter font-logo text-blue-500">Drop</h1>
           </div>
 
           <div className="flex items-center gap-2">
