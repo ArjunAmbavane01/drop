@@ -19,6 +19,7 @@ import {
   deleteRoomAction,
   leaveRoomAction,
 } from "@/server/rooms/actions";
+import Image from "next/image";
 
 interface DashboardScreenProps {
   initialMyRooms: Room[];
@@ -179,11 +180,15 @@ export function DashboardScreen({
       <div className="flex flex-col mx-auto sm:max-w-3xl w-full p-3 sm:py-8 sm:px-5">
         {/* Header */}
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-8 sm:size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <FolderOpen className="size-4 sm:size-5" />
-            </div>
-            <h1 className="text-xl font-semibold">Drop</h1>
+          <div className="flex items-center gap-0.5">
+            <Image
+              src={"/drop-logo.png"}
+              alt="Drop logo"
+              width={40}
+              height={40}
+              className="size-6 sm:size-8"
+            />
+            <h1 className="text-2xl font-semibold tracking-tighter font-logo text-primary">Drop</h1>
           </div>
 
           <div className="flex items-center gap-2">
