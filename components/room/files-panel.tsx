@@ -135,7 +135,6 @@ export function FilesPanel({
   const {
     uploads,
     isDragging,
-    isProcessing,
     fileInputRef,
     folderInputRef,
     handlePickerChange,
@@ -414,7 +413,6 @@ export function FilesPanel({
       <div className="shrink-0">
         <UploadDropzone
           isDragging={isDragging}
-          isProcessing={isProcessing}
           fileInputRef={fileInputRef}
           folderInputRef={folderInputRef}
           onPickerChange={handlePickerChange}

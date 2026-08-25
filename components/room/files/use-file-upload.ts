@@ -1,18 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent as ReactClipboardEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
 import { LIMITS } from "@/lib/limits";
 import { compileExclusionMatcher } from "@/lib/exclusions";
 import type { UploadGroup, UploadState } from "./types";
-import { groupFilesForUpload } from "./file-tree-utils";
+import { getFilePath, groupFilesForUploadAsync } from "./file-tree-utils";
+
+type UploadFileSource = File[] | FileList;
+
+async function buildValidationFiles(group: UploadGroup) {
+  const files: { name: string; size: number }[] = [];
+  for (let i = 0; i < group.files.length; i++) {
+    const file = group.files[i];
+    files.push({ name: file.relativePath, size: file.file.size });
+    if ((i + 1) % 500 === 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  return files;
+}
 
 export function useFileUpload(roomId: string, exclusions: string[]) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   const [pendingFolderUpload, setPendingFolderUpload] = useState<{
     group: UploadGroup;
@@ -20,11 +33,27 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
   } | null>(null);
 
   const pendingResolverRef = useRef<((choice: "skip" | "cancel") => void) | null>(null);
+  const uploadGroupsRef = useRef(new Map<string, UploadGroup>());
+  const cancelledUploadIdsRef = useRef(new Set<string>());
+  const pendingMetadataGroupsRef = useRef(new Map<string, UploadGroup>());
+  const metadataFlushScheduledRef = useRef(false);
+
+  type PendingConfirmation = {
+    group: UploadGroup;
+    excludedCount: number;
+    resolve: (choice: "skip" | "cancel") => void;
+  };
+  const confirmationQueueRef = useRef<PendingConfirmation[]>([]);
+  const activeConfirmationRef = useRef<PendingConfirmation | null>(null);
 
   function confirmFolderUpload(choice: "skip" | "cancel") {
-    if (pendingResolverRef.current) {
-      pendingResolverRef.current(choice);
-    }
+    const resolver = pendingResolverRef.current;
+    if (!resolver) return;
+    pendingResolverRef.current = null;
+    activeConfirmationRef.current = null;
+    setPendingFolderUpload(null);
+    resolver(choice);
+    showNextFolderConfirmation();
   }
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -39,8 +68,100 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     input.setAttribute("directory", "");
   }, []);
 
+  function showNextFolderConfirmation() {
+    if (activeConfirmationRef.current || confirmationQueueRef.current.length === 0) return;
+    const next = confirmationQueueRef.current.shift();
+    if (!next) return;
+    activeConfirmationRef.current = next;
+    pendingResolverRef.current = next.resolve;
+    setPendingFolderUpload({ group: next.group, excludedCount: next.excludedCount });
+  }
+
+  function requestFolderConfirmation(group: UploadGroup, excludedCount: number) {
+    return new Promise<"skip" | "cancel">((resolve) => {
+      confirmationQueueRef.current.push({ group, excludedCount, resolve });
+      showNextFolderConfirmation();
+    });
+  }
+
+  function addUploadToQueue(group: UploadGroup) {
+    addUploadsToQueue([group]);
+  }
+
+  function addUploadsToQueue(groups: UploadGroup[]) {
+    const nextGroups = groups.filter((group) => !cancelledUploadIdsRef.current.has(group.id));
+    if (nextGroups.length === 0) return;
+    for (const group of nextGroups) uploadGroupsRef.current.set(group.id, group);
+
+    setUploads((prev) => {
+      const existingIds = new Set(prev.map((upload) => upload.id));
+      const newUploads = nextGroups
+        .filter((group) => !existingIds.has(group.id))
+        .map((group): UploadState => ({
+          id: group.id,
+          name: group.name,
+          type: group.type,
+          status: "preparing",
+          progress: 0,
+          totalBytes: group.totalBytes ?? 0,
+          uploadedBytes: 0,
+          fileCount: group.fileCount,
+          activeRequests: [],
+          group,
+        }));
+      return newUploads.length > 0 ? [...newUploads, ...prev] : prev;
+    });
+  }
+
+  function updateQueuedGroupMetadata(groups: UploadGroup[]) {
+    for (const group of groups) {
+      uploadGroupsRef.current.set(group.id, group);
+      pendingMetadataGroupsRef.current.set(group.id, group);
+    }
+    if (metadataFlushScheduledRef.current) return;
+
+    metadataFlushScheduledRef.current = true;
+    const flush = () => {
+      metadataFlushScheduledRef.current = false;
+      const pendingGroups = Array.from(pendingMetadataGroupsRef.current.values());
+      pendingMetadataGroupsRef.current.clear();
+      if (pendingGroups.length === 0) return;
+
+      const byId = new Map(pendingGroups.map((group) => [group.id, group]));
+      setUploads((prev) => {
+        let changed = false;
+        const next = prev.map((upload) => {
+          const group = byId.get(upload.id);
+      if (!group || upload.status !== "preparing") return upload;
+
+          const totalBytes = group.totalBytes ?? upload.totalBytes;
+          const fileCount = group.fileCount ?? upload.fileCount;
+          if (totalBytes === upload.totalBytes && fileCount === upload.fileCount) return upload;
+
+          changed = true;
+          return { ...upload, totalBytes, fileCount };
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(flush);
+    } else {
+      setTimeout(flush, 16);
+    }
+  }
+
+  function markUploadGroupReady(group: UploadGroup) {
+    uploadGroupsRef.current.set(group.id, group);
+    setUploads((prev) => prev.map((upload) => upload.id === group.id
+      ? { ...upload, group, totalBytes: group.totalBytes ?? upload.totalBytes, fileCount: group.fileCount }
+      : upload));
+  }
+
   async function executeGroupUpload(group: UploadGroup) {
-    const totalBytes = group.files.reduce((sum, f) => sum + f.file.size, 0);
+    if (cancelledUploadIdsRef.current.has(group.id)) return;
+    const totalBytes = group.totalBytes ?? group.files.reduce((sum, f) => sum + f.file.size, 0);
     const activeRequests: XMLHttpRequest[] = [];
 
     setUploads((prev) => {
@@ -50,10 +171,15 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
           u.id === group.id
             ? {
               ...u,
-              status: "uploading",
+              name: group.name,
+              type: group.type,
+              status: "preparing",
               progress: 0,
               uploadedBytes: 0,
-              activeRequests,
+              totalBytes,
+              fileCount: group.fileCount ?? group.files.length,
+              activeRequests: [],
+              group,
               error: undefined,
             }
             : u,
@@ -64,11 +190,12 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
             id: group.id,
             name: group.name,
             type: group.type,
-            status: "uploading",
+            status: "preparing",
             progress: 0,
             totalBytes,
             uploadedBytes: 0,
-            activeRequests,
+            fileCount: group.fileCount ?? group.files.length,
+            activeRequests: [],
             group,
           },
           ...prev,
@@ -79,15 +206,13 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     const fileProgresses = new Map<string, number>();
 
     try {
-      const filesToValidate = group.files.map((f) => ({
-        name: f.relativePath,
-        size: f.file.size,
-      }));
+      const filesToValidate = await buildValidationFiles(group);
 
       const validationResult = await preValidateUploadAction(roomId, filesToValidate, {
         isFolder: group.type === "folder",
         includeExcluded: group.includeExcluded,
       });
+      if (cancelledUploadIdsRef.current.has(group.id)) return;
       if (!validationResult.success) {
         let errorMessage = "Upload validation failed.";
         const err = validationResult.error;
@@ -118,9 +243,17 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
         }
 
         toast.error(errorMessage);
-        setUploads((prev) => prev.filter((u) => u.id !== group.id));
+        setUploads((prev) => prev.map((u) =>
+          u.id === group.id ? { ...u, status: "error", error: errorMessage } : u,
+        ));
         return;
       }
+
+      setUploads((prev) => prev.map((upload) =>
+        upload.id === group.id
+          ? { ...upload, status: "uploading", activeRequests, group, totalBytes }
+          : upload,
+      ));
 
       const successfulUploads: CompleteUploadInput[] = [];
 
@@ -239,55 +372,104 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     }
   }
 
-  async function handleUploadStart(fileList: File[]) {
-    const validFiles = fileList.filter((file) => file.size >= 0);
-    if (validFiles.length === 0) return;
+  async function processUploadGroup(group: UploadGroup) {
+    if (cancelledUploadIdsRef.current.has(group.id)) return;
+    markUploadGroupReady(group);
 
-    setIsProcessing(true);
-    // Yield to let the UI update (e.g. unfreeze browser dialog, show loading overlay)
-    await new Promise((r) => setTimeout(r, 50));
+    if (group.type === "file") {
+      void executeGroupUpload(group);
+      return;
+    }
 
+    const excludedCount = group.skippedCount ?? 0;
+    if (excludedCount > 0) {
+      const choice = await requestFolderConfirmation({
+        ...group,
+      }, excludedCount);
+
+      if (cancelledUploadIdsRef.current.has(group.id)) return;
+      if (choice === "cancel") {
+        cancelUpload(group.id);
+        return;
+      }
+      void executeGroupUpload(group);
+      return;
+    }
+
+    void executeGroupUpload(group);
+  }
+
+  async function processUploadSelection(
+    source: UploadFileSource,
+    initialGroup: UploadGroup,
+    exclusionMatcher: ReturnType<typeof compileExclusionMatcher> | undefined,
+    onSourceConsumed?: () => void,
+  ) {
     try {
-      const uploadGroups = groupFilesForUpload(validFiles);
-      const matcher = compileExclusionMatcher(exclusions);
+      // Let the queue item commit before scanning a potentially very large FileList.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      if (cancelledUploadIdsRef.current.has(initialGroup.id)) return;
+      const uploadGroups = await groupFilesForUploadAsync(source, {
+        initialGroupId: initialGroup.id,
+        exclusionMatcher,
+        onGroupsDiscovered: addUploadsToQueue,
+        onGroupsUpdated: updateQueuedGroupMetadata,
+      });
 
       for (const group of uploadGroups) {
-        if (group.type === "file") {
-          executeGroupUpload(group);
-        } else {
-          const excludedFiles = group.files.filter((f) => matcher(f.relativePath));
-          if (excludedFiles.length > 0) {
-            setPendingFolderUpload({
-              group,
-              excludedCount: excludedFiles.length,
-            });
-
-            const choice = await new Promise<"skip" | "cancel">((resolve) => {
-              pendingResolverRef.current = resolve;
-            });
-
-            setPendingFolderUpload(null);
-            pendingResolverRef.current = null;
-
-            if (choice === "skip") {
-              const nonExcludedFiles = group.files.filter((f) => !matcher(f.relativePath));
-              executeGroupUpload({
-                ...group,
-                files: nonExcludedFiles,
-                skippedCount: excludedFiles.length,
-              });
-            }
-          } else {
-            executeGroupUpload(group);
-          }
-        }
+        await processUploadGroup(group);
       }
+    } catch (error) {
+      if (cancelledUploadIdsRef.current.has(initialGroup.id)) return;
+      const message = error instanceof Error ? error.message : "Unable to prepare upload.";
+      setUploads((prev) => prev.map((upload) => upload.id === initialGroup.id
+        ? { ...upload, status: "error", error: message }
+        : upload));
+      toast.error(`Upload preparation failed for ${initialGroup.name}`);
     } finally {
-      setIsProcessing(false);
+      onSourceConsumed?.();
     }
   }
 
+  function handleUploadStart(source: UploadFileSource, onSourceConsumed?: () => void) {
+    if (source.length === 0) return;
+
+    const firstFile = source[0];
+    const firstPath = getFilePath(firstFile);
+    const firstSlash = firstPath.indexOf("/");
+    const isFolder = firstSlash !== -1;
+    const exclusionMatcher = isFolder ? compileExclusionMatcher(exclusions) : undefined;
+    const relativePath = isFolder ? firstPath.substring(firstSlash + 1) : firstPath;
+    const isFirstFileExcluded = Boolean(exclusionMatcher?.(relativePath));
+    const initialGroup: UploadGroup = {
+      id: crypto.randomUUID(),
+      name: isFolder ? firstPath.substring(0, firstSlash) : firstFile.name,
+      type: isFolder ? "folder" : "file",
+      fileCount: isFirstFileExcluded ? 0 : 1,
+      totalBytes: isFirstFileExcluded ? 0 : firstFile.size,
+      files: isFirstFileExcluded ? [] : [{ file: firstFile, relativePath }],
+      skippedCount: isFirstFileExcluded ? 1 : undefined,
+    };
+
+    // Queue first, then continue discovery and validation in yielding async work.
+    addUploadToQueue(initialGroup);
+    void processUploadSelection(source, initialGroup, exclusionMatcher, onSourceConsumed);
+  }
+
   function cancelUpload(id: string) {
+    cancelledUploadIdsRef.current.add(id);
+    uploadGroupsRef.current.delete(id);
+
+    const activeConfirmation = activeConfirmationRef.current;
+    if (activeConfirmation?.group.id === id) confirmFolderUpload("cancel");
+
+    const remainingConfirmations: PendingConfirmation[] = [];
+    for (const confirmation of confirmationQueueRef.current) {
+      if (confirmation.group.id === id) confirmation.resolve("cancel");
+      else remainingConfirmations.push(confirmation);
+    }
+    confirmationQueueRef.current = remainingConfirmations;
+
     setUploads((prev) => {
       const item = prev.find((u) => u.id === id);
       if (item) {
@@ -300,6 +482,7 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
   async function handleRetryUpload(id: string) {
     const item = uploads.find((u) => u.id === id);
     if (item) {
+      cancelledUploadIdsRef.current.delete(id);
       await executeGroupUpload(item.group);
     }
   }
@@ -309,10 +492,15 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     if (folderInputRef.current) folderInputRef.current.value = "";
   }
 
-  async function handlePickerChange(event: ChangeEvent<HTMLInputElement>) {
-    const nextFiles = Array.from(event.target.files ?? []);
-    resetPickers();
-    await handleUploadStart(nextFiles);
+  function handlePickerChange(event: ChangeEvent<HTMLInputElement>) {
+    const picker = event.currentTarget;
+    const nextFiles = picker.files;
+    if (!nextFiles || nextFiles.length === 0) return;
+    picker.disabled = true;
+    handleUploadStart(nextFiles, () => {
+      resetPickers();
+      picker.disabled = false;
+    });
   }
 
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -433,7 +621,6 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
   return {
     uploads,
     isDragging,
-    isProcessing,
     fileInputRef,
     folderInputRef,
     handlePickerChange,

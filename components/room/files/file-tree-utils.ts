@@ -2,49 +2,105 @@ import type { RoomFile } from "@/types/rooms";
 import type { FolderItem, TopLevelItem, TreeNode, UploadGroup } from "./types";
 
 export function getFilePath(file: File): string {
-  const relativePath = "webkitRelativePath" in file ? (file.webkitRelativePath as string) : "";
-  return relativePath || file.name;
+  return file.webkitRelativePath || file.name;
 }
 
-export function groupFilesForUpload(fileList: File[]): UploadGroup[] {
-  const groups: Record<string, UploadGroup> = {};
-  const result: UploadGroup[] = [];
+type AsyncGroupingOptions = {
+  initialGroupId?: string;
+  exclusionMatcher?: (path: string) => boolean;
+  onGroupsDiscovered: (groups: UploadGroup[]) => void;
+  onGroupsUpdated: (groups: UploadGroup[]) => void;
+};
 
-  for (const file of fileList) {
+function yieldToMainThread() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Groups a large picker result in small chunks so React can paint and handle
+ * input between chunks. The first group can reuse an already-visible queue id.
+ */
+export async function groupFilesForUploadAsync(
+  fileList: File[] | FileList,
+  options: AsyncGroupingOptions,
+): Promise<UploadGroup[]> {
+  const groups = new Map<string, UploadGroup>();
+  const initialFilePath = fileList[0] ? getFilePath(fileList[0]) : "";
+  const initialRoot = initialFilePath.includes("/")
+    ? initialFilePath.substring(0, initialFilePath.indexOf("/"))
+    : initialFilePath;
+  const discoveredGroups: UploadGroup[] = [];
+  const updatedGroups = new Set<UploadGroup>();
+
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
     const relPath = getFilePath(file);
+    const firstSlash = relPath.indexOf("/");
+    let group: UploadGroup;
+    let isNewGroup = false;
 
-    if (relPath && relPath.includes("/")) {
-      const parts = relPath.split("/");
-      const rootFolder = parts[0];
-      const subPath = parts.slice(1).join("/");
-
-      if (!groups[rootFolder]) {
-        groups[rootFolder] = {
-          id: crypto.randomUUID(),
+    if (firstSlash !== -1) {
+      const rootFolder = relPath.substring(0, firstSlash);
+      group = groups.get(rootFolder) as UploadGroup;
+      if (!group) {
+        isNewGroup = true;
+        group = {
+          id: rootFolder === initialRoot && options.initialGroupId
+            ? options.initialGroupId
+            : crypto.randomUUID(),
           name: rootFolder,
           type: "folder",
+          fileCount: 0,
+          totalBytes: 0,
           files: [],
         };
+        groups.set(rootFolder, group);
       }
-      groups[rootFolder].files.push({
-        file,
-        relativePath: subPath,
-      });
+      const relativePath = relPath.substring(firstSlash + 1);
+      if (options.exclusionMatcher?.(relativePath)) {
+        group.skippedCount = (group.skippedCount ?? 0) + 1;
+      } else {
+        group.files.push({ file, relativePath });
+        group.fileCount = (group.fileCount ?? 0) + 1;
+        group.totalBytes = (group.totalBytes ?? 0) + file.size;
+      }
     } else {
-      result.push({
-        id: crypto.randomUUID(),
+      isNewGroup = true;
+      group = {
+        id: i === 0 && options.initialGroupId ? options.initialGroupId : crypto.randomUUID(),
         name: file.name,
         type: "file",
+        fileCount: 1,
+        totalBytes: file.size,
         files: [{ file, relativePath: file.name }],
-      });
+      };
+      groups.set(`${i}:${file.name}`, group);
+    }
+
+    updatedGroups.add(group);
+
+    if (isNewGroup) {
+      discoveredGroups.push({ ...group, files: [...group.files] });
+    }
+
+    if ((i + 1) % 500 === 0) {
+      if (discoveredGroups.length > 0) {
+        options.onGroupsDiscovered(discoveredGroups.splice(0));
+      }
+      options.onGroupsUpdated(Array.from(updatedGroups));
+      updatedGroups.clear();
+      await yieldToMainThread();
     }
   }
 
-  for (const rootFolder in groups) {
-    result.push(groups[rootFolder]);
+  if (discoveredGroups.length > 0) {
+    options.onGroupsDiscovered(discoveredGroups);
   }
-
-  return result;
+  if (updatedGroups.size > 0) {
+    options.onGroupsUpdated(Array.from(updatedGroups));
+  }
+  const grouped = Array.from(groups.values());
+  return grouped;
 }
 
 export function groupFilesAndFolders(files: RoomFile[]): TopLevelItem[] {

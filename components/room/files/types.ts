@@ -4,6 +4,8 @@ export type UploadGroup = {
   id: string;
   name: string;
   type: "file" | "folder";
+  fileCount?: number;
+  totalBytes?: number;
   files: {
     file: File;
     relativePath: string;
@@ -16,10 +18,11 @@ export type UploadState = {
   id: string;
   name: string;
   type: "file" | "folder";
-  status: "uploading" | "complete" | "error";
+  status: "preparing" | "uploading" | "complete" | "error";
   progress: number;
   totalBytes: number;
   uploadedBytes: number;
+  fileCount?: number;
   error?: string;
   activeRequests: XMLHttpRequest[];
   group: UploadGroup;
