@@ -337,7 +337,10 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
         socket.onmessage = (event) => {
           let message: DirectServerMessage;
           try { message = JSON.parse(event.data) as DirectServerMessage; } catch { return; }
-          if (message.type === "ready") setDevice(message.device);
+          if (message.type === "ready") {
+            setDevice(message.device);
+            setSignalingError(null);
+          }
           if (message.type === "presence") setDevices(message.devices.filter((item) => item.deviceId !== deviceId));
           if (message.type === "connection-request") setIncomingRequest({ requestId: message.requestId, from: message.from });
           if (message.type === "connection-response") {
@@ -370,12 +373,6 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
       socketRef.current = null;
     };
   }, [createPeer, resetPeer, roomId]);
-
-  useEffect(() => {
-    if (!signalingError) return;
-    const timeout = setTimeout(() => setSignalingError(null), 5000);
-    return () => clearTimeout(timeout);
-  }, [signalingError]);
 
   return {
     device,

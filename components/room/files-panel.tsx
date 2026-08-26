@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
+import { RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -901,7 +901,7 @@ export function ExclusionsDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-between w-full">
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-end w-full">
           <Button
             type="button"
             variant="ghost"

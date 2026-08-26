@@ -23,7 +23,7 @@ export function DirectConnectDialog({ open, devices, error, onOpenChange, onConn
           <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-5 text-center">
             <AlertTriangle className="mx-auto mb-2 size-5 text-red-500" />
             <p className="text-sm font-medium text-foreground">
-              Drop Direct is temporarily unavailable.
+              Drop Direct is temporarily unavailable
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Please try again in a moment.
@@ -33,7 +33,7 @@ export function DirectConnectDialog({ open, devices, error, onOpenChange, onConn
           <>
             <p className="flex items-center gap-3 rounded-lg border border-amber-500 bg-amber-400/20 px-3 py-2 text-sm text-foreground">
               <AlertTriangle className="size-4 shrink-0 text-amber-500" />
-              <span>Files sent with Drop Direct aren't stored in Drop.</span>
+              <span>Files sent with Drop Direct aren&apos;t stored in Drop.</span>
             </p>
 
             <div className="space-y-1">
@@ -90,7 +90,7 @@ export function IncomingDirectRequestDialog({ request, onAccept, onDecline }: { 
         </DialogHeader>
         <p className="flex items-center gap-3 rounded-lg border border-amber-500 bg-amber-400/20 px-3 py-2 text-sm text-foreground">
           <AlertTriangle className="size-4 shrink-0 text-amber-500" />
-          <span>Files sent with Drop Direct aren't stored in Drop.</span>
+          <span>Files sent with Drop Direct aren&apos;t stored in Drop.</span>
         </p>
         <DialogFooter>
           <Button variant="destructive" onClick={onDecline}><X />Decline</Button>
