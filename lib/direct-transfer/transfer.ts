@@ -15,6 +15,7 @@ export async function sendUploadGroup(
   onProgress: (transferredBytes: number, speedBytesPerSecond: number) => void,
   signal: AbortSignal,
 ) {
+  if (signal.aborted) throw new DOMException("Transfer cancelled.", "AbortError");
   const totalBytes = group.files.reduce((total, item) => total + item.file.size, 0);
   sendControl(peer, {
     type: "transfer-start",

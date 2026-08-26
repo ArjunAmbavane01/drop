@@ -76,9 +76,9 @@ export function UploadDropzone({
               {mode === "direct" ? "Drop files to send directly, or " : "Drag & drop your files here, or "}
               <span className="text-primary hover:underline font-semibold">browse</span>
             </p>
-            <p className="text-xs text-muted-foreground">
-              {mode === "direct" ? "Files go only to the connected device and are not saved to Drop" : "Supports multiple files or directories"}
-            </p>
+            {mode === "persistent" && (
+              <p className="text-xs text-muted-foreground">Supports multiple files or directories</p>
+            )}
 
             <div className="mt-3 flex items-center justify-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
               <Button

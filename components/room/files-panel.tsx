@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
+import { AlertTriangle, RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -72,6 +72,7 @@ interface FilesPanelProps {
   directConnection: { device: DirectDevice; status: "requesting" | "connecting" | "connected" } | null;
   onDirectGroup: (group: import("./files/types").UploadGroup, controls: DirectQueueControls) => void;
   onDirectCancel: (id: string) => void;
+  onRetrySentTransfer: (id: string) => void;
   receivedTransfers: DirectTransfer[];
   sentTransfers: DirectTransfer[];
 }
@@ -90,6 +91,7 @@ export function FilesPanel({
   directConnection,
   onDirectGroup,
   onDirectCancel,
+  onRetrySentTransfer,
   receivedTransfers,
   sentTransfers,
 }: FilesPanelProps) {
@@ -462,7 +464,7 @@ export function FilesPanel({
       />
 
       {directConnection?.status === "connected" && (
-        <DirectTransfers received={receivedTransfers} sent={sentTransfers} onDownload={handleDownloadDirectTransfer} />
+        <DirectTransfers received={receivedTransfers} sent={sentTransfers} onDownload={handleDownloadDirectTransfer} onRetry={onRetrySentTransfer} />
       )}
 
       {/* Uploaded Files List */}

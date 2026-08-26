@@ -53,7 +53,12 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
   const [signalingError, setSignalingError] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const peerRef = useRef<DirectPeerConnection | null>(null);
-  const pendingTransferAbortRef = useRef<AbortController | null>(null);
+  const transferAbortControllersRef = useRef(new Map<string, AbortController>());
+  const transferGroupsRef = useRef(new Map<string, UploadGroup>());
+  const transferControlsRef = useRef(new Map<string, DirectQueueControls>());
+  const sendQueueRef = useRef(Promise.resolve());
+  const acknowledgementWaitersRef = useRef(new Map<string, { resolve: () => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }>());
+  const earlyAcknowledgementsRef = useRef(new Set<string>());
   const pendingReceiveRef = useRef<{ transfer: DirectTransfer; files: ReceivedDirectFile[]; current?: { path: string; size: number; type: string; chunks: ArrayBuffer[] } } | null>(null);
   const deviceRef = useRef<DirectDevice | null>(null);
   const pendingConnectionRef = useRef<PendingConnection | null>(null);
@@ -68,10 +73,19 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
   const resetPeer = useCallback((reason?: string) => {
     peerRef.current?.close(reason);
     peerRef.current = null;
-    pendingTransferAbortRef.current?.abort();
-    pendingTransferAbortRef.current = null;
+    for (const [transferId, controller] of transferAbortControllersRef.current) {
+      controller.abort();
+      transferControlsRef.current.get(transferId)?.fail(reason ?? "The connection closed.");
+    }
+    transferAbortControllersRef.current.clear();
+    for (const waiter of acknowledgementWaitersRef.current.values()) {
+      clearTimeout(waiter.timeout);
+      waiter.reject(new Error(reason ?? "The connection closed."));
+    }
+    acknowledgementWaitersRef.current.clear();
+    earlyAcknowledgementsRef.current.clear();
     setSentTransfers((previous) => previous.map((transfer) => transfer.status === "transferring" ? { ...transfer, status: "failed", error: reason ?? "The connection closed." } : transfer));
-    setReceivedTransfers((previous) => previous.map((transfer) => transfer.status === "transferring" ? { ...transfer, status: "failed", error: reason ?? "The connection closed." } : transfer));
+    setReceivedTransfers((previous) => previous.filter((transfer) => transfer.status !== "transferring"));
     pendingReceiveRef.current = null;
     setPendingConnection(null);
     setDirectMode(false);
@@ -96,6 +110,24 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
     try { message = JSON.parse(data); } catch { return; }
     if (!isControlMessage(message)) return;
     const control = message as DirectControlMessage;
+    if (control.type === "transfer-acknowledged") {
+      const waiter = acknowledgementWaitersRef.current.get(control.transferId);
+      if (waiter) {
+        clearTimeout(waiter.timeout);
+        acknowledgementWaitersRef.current.delete(control.transferId);
+        waiter.resolve();
+      } else earlyAcknowledgementsRef.current.add(control.transferId);
+      return;
+    }
+    if (control.type === "transfer-failed") {
+      const waiter = acknowledgementWaitersRef.current.get(control.transferId);
+      if (waiter) {
+        clearTimeout(waiter.timeout);
+        acknowledgementWaitersRef.current.delete(control.transferId);
+        waiter.reject(new Error(control.reason));
+      }
+      return;
+    }
     const pending = pendingReceiveRef.current;
 
     if (control.type === "transfer-start") {
@@ -127,10 +159,27 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
       pending.current = undefined;
       updateTransfer("received", pending.transfer.id, { transferredBytes: pending.files.reduce((total, item) => total + item.size, 0), files: [...pending.files] });
     } else if (control.type === "transfer-complete") {
+      const receivedBytes = pending.files.reduce((total, file) => total + file.size, 0);
+      const isComplete = pending.files.length === pending.transfer.fileCount && receivedBytes === pending.transfer.totalBytes;
+      if (!isComplete) {
+        try {
+          peerRef.current?.send(JSON.stringify({ type: "transfer-failed", transferId: pending.transfer.id, reason: "The received file data was incomplete." } satisfies DirectControlMessage));
+        } catch { /* connection is closing */ }
+        setReceivedTransfers((previous) => previous.filter((transfer) => transfer.id !== pending.transfer.id));
+        pendingReceiveRef.current = null;
+        return;
+      }
+      try {
+        peerRef.current?.send(JSON.stringify({ type: "transfer-acknowledged", transferId: pending.transfer.id } satisfies DirectControlMessage));
+      } catch {
+        setReceivedTransfers((previous) => previous.filter((transfer) => transfer.id !== pending.transfer.id));
+        pendingReceiveRef.current = null;
+        return;
+      }
       updateTransfer("received", pending.transfer.id, { status: "complete", transferredBytes: pending.transfer.totalBytes, files: [...pending.files] });
       pendingReceiveRef.current = null;
     } else if (control.type === "transfer-cancelled") {
-      updateTransfer("received", pending.transfer.id, { status: "cancelled", error: control.reason });
+      setReceivedTransfers((previous) => previous.filter((transfer) => transfer.id !== pending.transfer.id));
       pendingReceiveRef.current = null;
     }
   }, [updateTransfer]);
@@ -181,12 +230,41 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
     resetPeer("Disconnected by user.");
   }, [pendingConnection?.device, resetPeer, send]);
 
+  const waitForAcknowledgement = useCallback((transferId: string, signal: AbortSignal) => {
+    if (earlyAcknowledgementsRef.current.delete(transferId)) return Promise.resolve();
+    if (signal.aborted) return Promise.reject(new DOMException("Transfer cancelled.", "AbortError"));
+    return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      acknowledgementWaitersRef.current.delete(transferId);
+      reject(new Error("The receiving device did not confirm the transfer."));
+    }, 30_000);
+    const abort = () => {
+      clearTimeout(timeout);
+      acknowledgementWaitersRef.current.delete(transferId);
+      reject(new DOMException("Transfer cancelled.", "AbortError"));
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    acknowledgementWaitersRef.current.set(transferId, {
+      timeout,
+      resolve: () => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      },
+      reject: (error) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    });
+    });
+  }, []);
+
   const handleDirectGroup = useCallback((group: UploadGroup, controls: DirectQueueControls) => {
-    const peer = peerRef.current;
-    if (!peer) {
+    if (!peerRef.current) {
       controls.fail("Connect to another device before sending files.");
       return;
     }
+    transferGroupsRef.current.set(group.id, group);
+    transferControlsRef.current.set(group.id, controls);
     const transfer: DirectTransfer = {
       id: group.id,
       direction: "sent",
@@ -197,30 +275,45 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
       fileCount: group.files.length,
       deviceName: pendingConnectionRef.current?.device.name ?? "Connected device",
       createdAt: new Date().toISOString(),
-      status: "transferring",
+      status: "queued",
     };
     setSentTransfers((previous) => [transfer, ...previous.filter((item) => item.id !== transfer.id)]);
     const abortController = new AbortController();
-    pendingTransferAbortRef.current = abortController;
-    controls.update({ status: "uploading" });
-    void sendUploadGroup(peer, group, (transferredBytes, speedBytesPerSecond) => {
-      controls.update({ progress: transfer.totalBytes ? Math.round(transferredBytes / transfer.totalBytes * 100) : 100, uploadedBytes: transferredBytes });
-      updateTransfer("sent", transfer.id, { transferredBytes, speedBytesPerSecond });
-    }, abortController.signal).then(() => {
+    transferAbortControllersRef.current.set(group.id, abortController);
+    const run = async () => {
+      const peer = peerRef.current;
+      if (!peer) throw new Error("The direct connection is no longer available.");
+      controls.update({ status: "uploading" });
+      updateTransfer("sent", transfer.id, { status: "transferring" });
+      await sendUploadGroup(peer, group, (transferredBytes, speedBytesPerSecond) => {
+        controls.update({ progress: transfer.totalBytes ? Math.round(transferredBytes / transfer.totalBytes * 100) : 100, uploadedBytes: transferredBytes });
+        updateTransfer("sent", transfer.id, { transferredBytes, speedBytesPerSecond });
+      }, abortController.signal);
+      await waitForAcknowledgement(transfer.id, abortController.signal);
       controls.complete();
       updateTransfer("sent", transfer.id, { status: "complete", transferredBytes: transfer.totalBytes });
-    }).catch((error: unknown) => {
+    };
+    const queuedRun = sendQueueRef.current.then(run, run).catch((error: unknown) => {
       const cancelled = error instanceof DOMException && error.name === "AbortError";
       const message = cancelled ? "Cancelled" : error instanceof Error ? error.message : "Direct transfer failed.";
       controls.fail(message);
       updateTransfer("sent", transfer.id, { status: cancelled ? "cancelled" : "failed", error: message });
+    }).finally(() => {
+      transferAbortControllersRef.current.delete(group.id);
     });
-  }, [updateTransfer]);
+    sendQueueRef.current = queuedRun.then(() => undefined, () => undefined);
+  }, [updateTransfer, waitForAcknowledgement]);
 
   const handleDirectCancel = useCallback((id: string) => {
-    if (pendingTransferAbortRef.current) pendingTransferAbortRef.current.abort();
+    transferAbortControllersRef.current.get(id)?.abort();
     updateTransfer("sent", id, { status: "cancelled", error: "Cancelled" });
   }, [updateTransfer]);
+
+  const retrySentTransfer = useCallback((id: string) => {
+    const group = transferGroupsRef.current.get(id);
+    const controls = transferControlsRef.current.get(id);
+    if (group && controls) handleDirectGroup(group, controls);
+  }, [handleDirectGroup]);
 
   useEffect(() => {
     let disposed = false;
@@ -300,5 +393,6 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
     setDirectMode,
     handleDirectGroup,
     handleDirectCancel,
+    retrySentTransfer,
   };
 }

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   leaveRoomAction,
   clearRoomAction,
@@ -20,6 +21,7 @@ import { QuickTextPanel } from "@/components/room/quick-text-panel";
 import { RoomHeader } from "@/components/room/room-header";
 import { useDirectTransfer } from "@/hooks/use-direct-transfer";
 import { DirectConnectDialog, IncomingDirectRequestDialog } from "@/components/room/files/direct-transfer-dialogs";
+import { Spinner } from "../ui/spinner";
 
 export function RoomDashboard({
   initialSnapshot,
@@ -253,7 +255,7 @@ export function RoomDashboard({
               <button
                 type="button"
                 onClick={() => setActiveTab("files")}
-                className={`relative px-3 py-1 text-sm uppercase cursor-pointer ${activeTab === "files"
+                className={`relative px-2.5 py-1 text-sm uppercase cursor-pointer ${activeTab === "files"
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground transition-colors duration-300"
                   }`}
@@ -261,7 +263,7 @@ export function RoomDashboard({
                 {activeTab === "files" && (
                   <motion.span
                     layoutId="activeTabPill"
-                    className="absolute inset-0 rounded-lg border border-foreground/60"
+                    className="absolute inset-0 rounded border border-foreground/60"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
@@ -300,22 +302,36 @@ export function RoomDashboard({
               )}
 
               {
-                activeTab !== "text" && ( directTransfer.pendingConnection?.status === "connected" ? (
-                      <Button variant="secondary" size="sm" onClick={directTransfer.disconnect}>
-                        <span className="size-1.5 rounded-full bg-emerald-600" />
-                        <span className="hidden sm:inline">Connected to {directTransfer.pendingConnection.device.name}</span>
-                        <span className="sm:hidden">Connected</span>
-                        <span className="text-muted-foreground">Disconnect</span>
-                      </Button>
-                    ) : directTransfer.pendingConnection ? (
-                      <Button variant="ghost" size="sm" onClick={directTransfer.disconnect} className="text-muted-foreground">
-                        Connecting to {directTransfer.pendingConnection.device.name} · Cancel
-                      </Button>
-                    ) : (
-                      <Button variant="secondary" size="sm" onClick={() => setIsDirectDialogOpen(true)}>
-                        <span className="size-1.5 rounded-full bg-muted-foreground" /> Direct connect
-                      </Button>
-                    )
+                activeTab !== "text" && (directTransfer.pendingConnection?.status === "connected" ? (
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="flex min-w-0 max-w-56 items-center gap-2 text-sm font-medium text-foreground sm:max-w-76" />}>
+                        <span className="size-1.5 shrink-0 rounded-full bg-emerald-600" />
+                        <span className="truncate">{directTransfer.pendingConnection.device.name}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{directTransfer.pendingConnection.device.name}</TooltipContent>
+                    </Tooltip>
+                    <Button variant="ghost" size="sm" onClick={directTransfer.disconnect} className="text-destructive bg-destructive/10 hover:bg-destructive/30 hover:text-destructive">
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : directTransfer.pendingConnection ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 max-w-64 items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        Connecting to {directTransfer.pendingConnection.device.name}
+                      </span>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={directTransfer.disconnect}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={() => setIsDirectDialogOpen(true)}>
+                    <span className="size-1.5 rounded-full bg-emerald-600" /> Direct connect
+                  </Button>
+                )
                 )
               }
             </div>
@@ -354,6 +370,7 @@ export function RoomDashboard({
                     directConnection={directTransfer.pendingConnection}
                     onDirectGroup={directTransfer.handleDirectGroup}
                     onDirectCancel={directTransfer.handleDirectCancel}
+                    onRetrySentTransfer={directTransfer.retrySentTransfer}
                     receivedTransfers={directTransfer.receivedTransfers}
                     sentTransfers={directTransfer.sentTransfers}
                     onFilesRefresh={(files) =>

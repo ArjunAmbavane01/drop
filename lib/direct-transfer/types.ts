@@ -79,4 +79,6 @@ export type DirectControlMessage =
   }
   | { type: "file-end" }
   | { type: "transfer-complete" }
-  | { type: "transfer-cancelled"; reason?: string };
+  | { type: "transfer-cancelled"; reason?: string }
+  | { type: "transfer-acknowledged"; transferId: string }
+  | { type: "transfer-failed"; transferId: string; reason: string };
