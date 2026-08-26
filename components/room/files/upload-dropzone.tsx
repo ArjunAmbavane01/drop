@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Clipboard, FolderUp, Upload } from "lucide-react";
 
 interface UploadDropzoneProps {
+  mode?: "persistent" | "direct";
   isDragging: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
   folderInputRef: RefObject<HTMLInputElement | null>;
@@ -19,6 +20,7 @@ interface UploadDropzoneProps {
 }
 
 export function UploadDropzone({
+  mode = "persistent",
   isDragging,
   fileInputRef,
   folderInputRef,
@@ -71,11 +73,11 @@ export function UploadDropzone({
             </div>
 
             <p className="text-xs sm:text-sm font-medium text-foreground">
-              Drag & drop your files here, or{" "}
+              {mode === "direct" ? "Drop files to send directly, or " : "Drag & drop your files here, or "}
               <span className="text-primary hover:underline font-semibold">browse</span>
             </p>
             <p className="text-xs text-muted-foreground">
-              Supports multiple files or directories
+              {mode === "direct" ? "Files go only to the connected device and are not saved to Drop" : "Supports multiple files or directories"}
             </p>
 
             <div className="mt-3 flex items-center justify-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>

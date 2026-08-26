@@ -28,6 +28,8 @@ export type UploadState = {
   group: UploadGroup;
 };
 
+export type UploadMode = "persistent" | "direct";
+
 export interface TreeNode {
   name: string;
   relativePath: string;

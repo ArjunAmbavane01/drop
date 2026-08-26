@@ -5,6 +5,7 @@ import {
   FileAudio,
   FileVideo,
   FileText as GenericFile,
+  Folder,
 } from "lucide-react";
 import { Golang } from "../ui/svgs/golang";
 import { MicrosoftExcel } from "../ui/svgs/microsoftExcel";
@@ -114,4 +115,8 @@ export function FileIcon({
       : icon;
 
   return <IconComponent className={className} />;
+}
+
+export function FileOrFolderIcon({ fileName, type, className }: { fileName: string; type: "file" | "folder"; className?: string }) {
+  return type === "folder" ? <Folder className={className} /> : <FileIcon fileName={fileName} className={className} />;
 }

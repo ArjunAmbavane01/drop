@@ -8,6 +8,8 @@ import { LIMITS } from "@/lib/limits";
 import { compileExclusionMatcher } from "@/lib/exclusions";
 import type { UploadGroup, UploadState } from "./types";
 import { getFilePath, groupFilesForUploadAsync } from "./file-tree-utils";
+import type { DirectQueueControls } from "@/lib/direct-transfer/types";
+import type { UploadMode } from "./types";
 
 type UploadFileSource = File[] | FileList;
 
@@ -23,7 +25,16 @@ async function buildValidationFiles(group: UploadGroup) {
   return files;
 }
 
-export function useFileUpload(roomId: string, exclusions: string[]) {
+export function useFileUpload(
+  roomId: string,
+  exclusions: string[],
+  options: {
+    mode?: UploadMode;
+    onDirectGroup?: (group: UploadGroup, controls: DirectQueueControls) => void;
+    onDirectCancel?: (id: string) => void;
+  } = {},
+) {
+  const mode = options.mode ?? "persistent";
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -157,6 +168,17 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     setUploads((prev) => prev.map((upload) => upload.id === group.id
       ? { ...upload, group, totalBytes: group.totalBytes ?? upload.totalBytes, fileCount: group.fileCount }
       : upload));
+  }
+
+  function getQueueControls(id: string): DirectQueueControls {
+    return {
+      update: (update) => setUploads((prev) => prev.map((upload) => upload.id === id ? { ...upload, ...update } : upload)),
+      complete: () => {
+        setUploads((prev) => prev.map((upload) => upload.id === id ? { ...upload, status: "complete", progress: 100, uploadedBytes: upload.totalBytes } : upload));
+        setTimeout(() => setUploads((prev) => prev.filter((upload) => upload.id !== id)), 700);
+      },
+      fail: (error) => setUploads((prev) => prev.map((upload) => upload.id === id ? { ...upload, status: "error", error } : upload)),
+    };
   }
 
   async function executeGroupUpload(group: UploadGroup) {
@@ -376,6 +398,11 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     if (cancelledUploadIdsRef.current.has(group.id)) return;
     markUploadGroupReady(group);
 
+    if (mode === "direct") {
+      options.onDirectGroup?.(group, getQueueControls(group.id));
+      return;
+    }
+
     if (group.type === "file") {
       void executeGroupUpload(group);
       return;
@@ -459,6 +486,7 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
   function cancelUpload(id: string) {
     cancelledUploadIdsRef.current.add(id);
     uploadGroupsRef.current.delete(id);
+    if (mode === "direct") options.onDirectCancel?.(id);
 
     const activeConfirmation = activeConfirmationRef.current;
     if (activeConfirmation?.group.id === id) confirmFolderUpload("cancel");
@@ -483,7 +511,8 @@ export function useFileUpload(roomId: string, exclusions: string[]) {
     const item = uploads.find((u) => u.id === id);
     if (item) {
       cancelledUploadIdsRef.current.delete(id);
-      await executeGroupUpload(item.group);
+      if (mode === "direct") options.onDirectGroup?.(item.group, getQueueControls(item.id));
+      else await executeGroupUpload(item.group);
     }
   }
 

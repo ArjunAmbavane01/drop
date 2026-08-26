@@ -29,15 +29,16 @@ interface UploadQueueProps {
   uploads: UploadState[];
   onRetry: (id: string) => void;
   onCancel: (id: string) => void;
+  title?: string;
 }
 
-export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
+export function UploadQueue({ uploads, onRetry, onCancel, title = "Uploading" }: UploadQueueProps) {
   return (
     <AnimatePresence>
       {uploads.length > 0 && (
         <div className="space-y-2 shrink-0 flex flex-col min-h-0">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none shrink-0">
-            Uploading ({uploads.length})
+            {title} ({uploads.length})
           </h3>
           <ScrollArea
             className={cn(
