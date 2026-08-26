@@ -58,6 +58,7 @@ export function RoomHeader({
             render={
               <Button
                 render={<Link href="/" prefetch={true} />}
+                nativeButton={false}
                 size="icon-sm"
                 variant={"outline"}
                 aria-label="Back"
