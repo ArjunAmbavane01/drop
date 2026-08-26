@@ -5,10 +5,14 @@ type WorkerEnv = {
 
 type DirectIdentity = { roomId: string; userId: string; deviceId: string; name: string; exp: number };
 type SocketLike = {
-  accept(): void;
-  addEventListener(type: string, listener: (event: { data?: unknown }) => void): void;
   send(data: string): void;
   close(code?: number, reason?: string): void;
+  serializeAttachment(value: unknown): void;
+  deserializeAttachment(): unknown;
+};
+type DurableObjectStateLike = {
+  acceptWebSocket(socket: SocketLike): void;
+  getWebSockets(): SocketLike[];
 };
 
 function decodeBase64Url(value: string) {
@@ -38,10 +42,9 @@ async function verifyToken(token: string, secret: string): Promise<DirectIdentit
 }
 
 export class DirectRoom {
-  private readonly state: { acceptWebSocket(socket: SocketLike): void };
-  private readonly peers = new Map<string, { socket: SocketLike; userId: string; name: string }>();
+  private readonly state: DurableObjectStateLike;
 
-  constructor(state: { acceptWebSocket(socket: SocketLike): void }) {
+  constructor(state: DurableObjectStateLike) {
     this.state = state;
   }
 
@@ -57,52 +60,70 @@ export class DirectRoom {
       name: request.headers.get("X-Direct-Name") ?? "Device",
       exp: 0,
     };
-    this.state.acceptWebSocket(server);
-    const existing = this.peers.get(identity.deviceId);
+    const existing = this.getPeers().find((peer) => peer.identity.deviceId === identity.deviceId);
     if (existing) existing.socket.close(1000, "Reconnected");
-    this.peers.set(identity.deviceId, { socket: server, userId: identity.userId, name: identity.name });
-    server.addEventListener("message", (event) => this.handleMessage(identity, server, event.data));
-    server.addEventListener("close", () => this.remove(identity.deviceId, server));
+    server.serializeAttachment(identity);
+    this.state.acceptWebSocket(server);
     this.broadcastPresence();
     server.send(JSON.stringify({ type: "ready", device: { deviceId: identity.deviceId, userId: identity.userId, name: identity.name } }));
     return new Response(null, { status: 101, webSocket: client } as ResponseInit & { webSocket: SocketLike });
   }
 
-  private handleMessage(identity: DirectIdentity, socket: SocketLike, raw: unknown) {
+  webSocketMessage(socket: SocketLike, raw: string | ArrayBuffer) {
+    const identity = this.getIdentity(socket);
+    if (!identity) return;
+    this.handleMessage(identity, raw);
+  }
+
+  webSocketClose() {
+    this.broadcastPresence();
+  }
+
+  webSocketError() {
+    this.broadcastPresence();
+  }
+
+  private handleMessage(identity: DirectIdentity, raw: string | ArrayBuffer) {
     if (typeof raw !== "string" || raw.length > 64 * 1024) return;
     let message: { type?: string; toDeviceId?: string; requestId?: string; accepted?: boolean; payload?: unknown };
     try { message = JSON.parse(raw); } catch { return; }
     const targetId = typeof message.toDeviceId === "string" ? message.toDeviceId : undefined;
-    const target = targetId ? this.peers.get(targetId) : undefined;
+    const target = targetId ? this.getPeers().find((peer) => peer.identity.deviceId === targetId) : undefined;
 
     if (message.type === "connection-request" && target && typeof message.requestId === "string") {
-      target.socket.send(JSON.stringify({ type: "connection-request", requestId: message.requestId, from: { deviceId: identity.deviceId, userId: identity.userId, name: identity.name } }));
+      this.send(target.socket, { type: "connection-request", requestId: message.requestId, from: this.toDevice(identity) });
     } else if (message.type === "connection-response" && target && typeof message.requestId === "string" && typeof message.accepted === "boolean") {
-      target.socket.send(JSON.stringify({ type: "connection-response", requestId: message.requestId, accepted: message.accepted, from: { deviceId: identity.deviceId, userId: identity.userId, name: identity.name } }));
+      this.send(target.socket, { type: "connection-response", requestId: message.requestId, accepted: message.accepted, from: this.toDevice(identity) });
     } else if (message.type === "signal" && target && message.payload) {
-      target.socket.send(JSON.stringify({ type: "signal", fromDeviceId: identity.deviceId, payload: message.payload }));
+      this.send(target.socket, { type: "signal", fromDeviceId: identity.deviceId, payload: message.payload });
     } else if (message.type === "disconnect" && target) {
-      target.socket.send(JSON.stringify({ type: "peer-disconnected", deviceId: identity.deviceId }));
+      this.send(target.socket, { type: "peer-disconnected", deviceId: identity.deviceId });
     }
-    void socket;
   }
 
-  private remove(deviceId: string, socket?: SocketLike) {
-    const current = this.peers.get(deviceId);
-    if (!current || (socket && current.socket !== socket)) return;
-    this.peers.delete(deviceId);
-    for (const peer of this.peers.values()) {
-      try { peer.socket.send(JSON.stringify({ type: "peer-disconnected", deviceId })); } catch { /* socket is closing */ }
-    }
-    this.broadcastPresence();
+  private getIdentity(socket: SocketLike) {
+    const value = socket.deserializeAttachment();
+    return value && typeof value === "object" ? value as DirectIdentity : null;
+  }
+
+  private getPeers() {
+    return this.state.getWebSockets()
+      .map((socket) => ({ socket, identity: this.getIdentity(socket) }))
+      .filter((peer): peer is { socket: SocketLike; identity: DirectIdentity } => Boolean(peer.identity));
+  }
+
+  private toDevice(identity: DirectIdentity) {
+    return { deviceId: identity.deviceId, userId: identity.userId, name: identity.name };
+  }
+
+  private send(socket: SocketLike, message: unknown) {
+    try { socket.send(JSON.stringify(message)); } catch { /* socket is closing */ }
   }
 
   private broadcastPresence() {
-    const devices = Array.from(this.peers.entries()).map(([deviceId, peer]) => ({ deviceId, userId: peer.userId, name: peer.name }));
-    const message = JSON.stringify({ type: "presence", devices });
-    for (const peer of this.peers.values()) {
-      try { peer.socket.send(message); } catch { /* socket is closing */ }
-    }
+    const peers = this.getPeers();
+    const devices = peers.map((peer) => this.toDevice(peer.identity));
+    for (const peer of peers) this.send(peer.socket, { type: "presence", devices });
   }
 }
 
