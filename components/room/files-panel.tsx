@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -51,7 +51,10 @@ import { EmptyFiles } from "./files/empty-files";
 import { FileRow } from "./files/file-row";
 import { FolderRow } from "./files/folder-row";
 import { FileRenameDialog, FolderRenameDialog } from "./files/rename-dialogs";
-import type { FolderItem } from "./files/types";
+import type { FolderItem, UploadMode } from "./files/types";
+import type { DirectDevice, DirectQueueControls, DirectTransfer } from "@/lib/direct-transfer/types";
+import { DirectTransfers } from "./files/direct-transfers";
+import { downloadDirectTransfer } from "@/lib/direct-transfer/download";
 
 const MAX_BULK_SELECTION = 50;
 
@@ -65,6 +68,13 @@ interface FilesPanelProps {
   onFolderDelete: (uploadId: string) => void;
   onBulkDelete?: (deletedFileIds: string[], deletedFolderIds: string[]) => void;
   onRestoreFiles?: (files: RoomFile[]) => void;
+  directMode: boolean;
+  directConnection: { device: DirectDevice; status: "requesting" | "connecting" | "connected" } | null;
+  onDirectGroup: (group: import("./files/types").UploadGroup, controls: DirectQueueControls) => void;
+  onDirectCancel: (id: string) => void;
+  onRetrySentTransfer: (id: string) => void;
+  receivedTransfers: DirectTransfer[];
+  sentTransfers: DirectTransfer[];
 }
 
 export function FilesPanel({
@@ -77,6 +87,13 @@ export function FilesPanel({
   onFolderDelete,
   onBulkDelete,
   onRestoreFiles,
+  directMode,
+  directConnection,
+  onDirectGroup,
+  onDirectCancel,
+  onRetrySentTransfer,
+  receivedTransfers,
+  sentTransfers,
 }: FilesPanelProps) {
   const [renameTarget, setRenameTarget] = useState<RoomFile | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -148,7 +165,26 @@ export function FilesPanel({
     confirmFolderUpload,
     handleClipboardUpload,
     handleClipboardPaste,
-  } = useFileUpload(roomId, exclusions);
+    clearUploads,
+  } = useFileUpload(roomId, exclusions, {
+    mode: (directMode ? "direct" : "persistent") as UploadMode,
+    onDirectGroup,
+    onDirectCancel,
+  });
+
+  const wasDirectModeRef = useRef(directMode);
+  useEffect(() => {
+    if (wasDirectModeRef.current && !directMode) clearUploads();
+    wasDirectModeRef.current = directMode;
+  }, [clearUploads, directMode]);
+
+  async function handleDownloadDirectTransfer(transfer: DirectTransfer) {
+    try {
+      await downloadDirectTransfer(transfer.name, transfer.files ?? [], transfer.type);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download direct transfer.");
+    }
+  }
 
   const groupedItems = useMemo(() => groupFilesAndFolders(files), [files]);
   const currentItemIds = useMemo(() => {
@@ -412,6 +448,7 @@ export function FilesPanel({
       {/* Drag & Drop Upload Dropzone */}
       <div className="shrink-0">
         <UploadDropzone
+          mode={directMode ? "direct" : "persistent"}
           isDragging={isDragging}
           fileInputRef={fileInputRef}
           folderInputRef={folderInputRef}
@@ -430,10 +467,15 @@ export function FilesPanel({
         uploads={uploads}
         onRetry={handleRetryUpload}
         onCancel={cancelUpload}
+        title={directMode ? "Sending directly" : "Uploading"}
       />
 
+      {directConnection?.status === "connected" && (
+        <DirectTransfers received={receivedTransfers} sent={sentTransfers} onDownload={handleDownloadDirectTransfer} onRetry={onRetrySentTransfer} />
+      )}
+
       {/* Uploaded Files List */}
-      <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+      {directConnection?.status !== "connected" && <div className="flex-1 flex flex-col gap-3 overflow-hidden">
         <div className="flex items-center justify-between select-none shrink-0">
           <div className="flex items-center gap-2">
             {groupedItems.length > 0 && (
@@ -573,7 +615,7 @@ export function FilesPanel({
             </ScrollArea>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Rename File Dialog */}
       <FileRenameDialog
@@ -866,7 +908,7 @@ export function ExclusionsDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-between w-full">
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-end w-full">
           <Button
             type="button"
             variant="ghost"

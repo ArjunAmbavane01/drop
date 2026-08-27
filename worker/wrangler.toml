@@ -1,0 +1,14 @@
+name = "drop-direct-signaling"
+main = "signaling-worker.ts"
+compatibility_date = "2026-08-25"
+
+[durable_objects]
+bindings = [
+  { name = "DIRECT_ROOMS", class_name = "DirectRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DirectRoom"]
+
+[vars]

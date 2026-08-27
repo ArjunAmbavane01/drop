@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   leaveRoomAction,
   clearRoomAction,
@@ -18,6 +19,9 @@ import type { RoomEvent, RoomMember, RoomSnapshot } from "@/types/rooms";
 import { FilesPanel } from "@/components/room/files-panel";
 import { QuickTextPanel } from "@/components/room/quick-text-panel";
 import { RoomHeader } from "@/components/room/room-header";
+import { useDirectTransfer } from "@/hooks/use-direct-transfer";
+import { DirectConnectDialog, IncomingDirectRequestDialog } from "@/components/room/files/direct-transfer-dialogs";
+import { Spinner } from "../ui/spinner";
 
 export function RoomDashboard({
   initialSnapshot,
@@ -32,7 +36,10 @@ export function RoomDashboard({
   const [activeTab, setActiveTab] = useState<"text" | "files">("text");
   const [copied, setCopied] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  const [isDirectDialogOpen, setIsDirectDialogOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const isOwner = snapshot.room.ownerId === currentUser.id;
+  const directTransfer = useDirectTransfer(snapshot.room.id, currentUser);
 
   const textValueRef = useRef(initialSnapshot.text.value);
   const saveSequenceRef = useRef(0);
@@ -194,8 +201,11 @@ export function RoomDashboard({
   }
 
   async function handleClearSession() {
+    setIsClearing(true);
+
     try {
       await clearRoomAction(snapshot.room.id);
+
       remoteRevisionRef.current = localRevisionRef.current;
       lastRemoteTextRef.current = "";
       textValueRef.current = "";
@@ -205,9 +215,14 @@ export function RoomDashboard({
         text: { ...previous.text, value: "" },
         files: [],
       }));
+
       toast.success("Room cleared.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to clear the room.");
+      toast.error(
+        error instanceof Error ? error.message : "Unable to clear the room."
+      );
+    } finally {
+      setIsClearing(false);
     }
   }
 
@@ -220,6 +235,7 @@ export function RoomDashboard({
           isOwner={isOwner}
           onLeave={handleLeaveRoom}
           onClearRoom={handleClearSession}
+          isClearing={isClearing}
           onlineUserIds={onlineUserIds}
           currentUserId={currentUser.id}
         />
@@ -232,8 +248,8 @@ export function RoomDashboard({
                 type="button"
                 onClick={() => setActiveTab("text")}
                 className={`relative px-3 py-1 text-sm uppercase cursor-pointer ${activeTab === "text"
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground transition-colors duration-300"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground transition-colors duration-300"
                   }`}
               >
                 {activeTab === "text" && (
@@ -249,15 +265,15 @@ export function RoomDashboard({
               <button
                 type="button"
                 onClick={() => setActiveTab("files")}
-                className={`relative px-3 py-1 text-sm uppercase cursor-pointer ${activeTab === "files"
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground transition-colors duration-300"
+                className={`relative px-2.5 py-1 text-sm uppercase cursor-pointer ${activeTab === "files"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground transition-colors duration-300"
                   }`}
               >
                 {activeTab === "files" && (
                   <motion.span
                     layoutId="activeTabPill"
-                    className="absolute inset-0 rounded-lg border border-foreground/60"
+                    className="absolute inset-0 rounded border border-foreground/60"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
@@ -265,34 +281,70 @@ export function RoomDashboard({
               </button>
             </div>
 
-            {/* Contextual actions for Text tab */}
-            {activeTab === "text" && (
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleCopyText}
-                  title="Copy text to clipboard"
-                >
-                  {copied ? (
-                    <Check className="text-emerald-500" />
-                  ) : (
-                    <Copy/>
-                  )}
-                  <span>{copied ? "Copied" : "Copy"}</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearText}
-                  className="hover:text-destructive hover:bg-destructive/10"
-                  title="Clear text"
-                >
-                  <Eraser />
-                  <span>Clear text</span>
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5">
+              {/* Contextual actions for Text tab */}
+              {activeTab === "text" && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCopyText}
+                    title="Copy text to clipboard"
+                  >
+                    {copied ? (
+                      <Check className="text-emerald-500" />
+                    ) : (
+                      <Copy />
+                    )}
+                    <span>{copied ? "Copied" : "Copy"}</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearText}
+                    className="hover:text-destructive hover:bg-destructive/10"
+                    title="Clear text"
+                  >
+                    <Eraser />
+                    <span>Clear text</span>
+                  </Button>
+                </>
+              )}
+
+              {
+                activeTab !== "text" && (directTransfer.pendingConnection?.status === "connected" ? (
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="flex min-w-0 max-w-56 items-center gap-2 text-sm font-medium text-foreground sm:max-w-76" />}>
+                        <span className="size-1.5 shrink-0 rounded-full bg-emerald-600" />
+                        <span className="truncate">{directTransfer.pendingConnection.device.name}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{directTransfer.pendingConnection.device.name}</TooltipContent>
+                    </Tooltip>
+                    <Button variant="ghost" size="sm" onClick={directTransfer.disconnect} className="text-destructive bg-destructive/10 hover:bg-destructive/30 hover:text-destructive">
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : directTransfer.pendingConnection ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 max-w-64 items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        Connecting to {directTransfer.pendingConnection.device.name}
+                      </span>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={directTransfer.disconnect}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={() => setIsDirectDialogOpen(true)}>
+                    <span className="size-1.5 rounded-full bg-emerald-600" /> Direct connect
+                  </Button>
+                )
+                )
+              }
+            </div>
           </div>
 
           {/* Panel display */}
@@ -324,6 +376,13 @@ export function RoomDashboard({
                   <FilesPanel
                     roomId={snapshot.room.id}
                     files={snapshot.files}
+                    directMode={directTransfer.directMode}
+                    directConnection={directTransfer.pendingConnection}
+                    onDirectGroup={directTransfer.handleDirectGroup}
+                    onDirectCancel={directTransfer.handleDirectCancel}
+                    onRetrySentTransfer={directTransfer.retrySentTransfer}
+                    receivedTransfers={directTransfer.receivedTransfers}
+                    sentTransfers={directTransfer.sentTransfers}
                     onFilesRefresh={(files) =>
                       setSnapshot((previous) => ({
                         ...previous,
@@ -383,6 +442,18 @@ export function RoomDashboard({
           </div>
         </div>
       </div>
+      <IncomingDirectRequestDialog
+        request={directTransfer.incomingRequest}
+        onAccept={directTransfer.acceptRequest}
+        onDecline={directTransfer.declineRequest}
+      />
+      <DirectConnectDialog
+        open={isDirectDialogOpen}
+        devices={directTransfer.devices}
+        error={directTransfer.signalingError}
+        onOpenChange={setIsDirectDialogOpen}
+        onConnect={directTransfer.connectTo}
+      />
     </main>
   );
 }
