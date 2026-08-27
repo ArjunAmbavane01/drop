@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -165,11 +165,18 @@ export function FilesPanel({
     confirmFolderUpload,
     handleClipboardUpload,
     handleClipboardPaste,
+    clearUploads,
   } = useFileUpload(roomId, exclusions, {
     mode: (directMode ? "direct" : "persistent") as UploadMode,
     onDirectGroup,
     onDirectCancel,
   });
+
+  const wasDirectModeRef = useRef(directMode);
+  useEffect(() => {
+    if (wasDirectModeRef.current && !directMode) clearUploads();
+    wasDirectModeRef.current = directMode;
+  }, [clearUploads, directMode]);
 
   async function handleDownloadDirectTransfer(transfer: DirectTransfer) {
     try {

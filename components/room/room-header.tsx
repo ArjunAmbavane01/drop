@@ -31,6 +31,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
+import { useState } from "react";
+import { Spinner } from "../ui/spinner";
 
 export function RoomHeader({
   room,
@@ -38,6 +40,7 @@ export function RoomHeader({
   isOwner,
   onLeave,
   onClearRoom,
+  isClearing,
   onlineUserIds = [],
   currentUserId,
 }: {
@@ -45,10 +48,14 @@ export function RoomHeader({
   members: RoomMember[];
   isOwner: boolean;
   onLeave: () => void;
-  onClearRoom: () => void;
+  onClearRoom: () => Promise<void>;
+  isClearing?: boolean;
   onlineUserIds?: string[];
   currentUserId?: string;
 }) {
+
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+
   return (
     <header className="flex items-center justify-between gap-2 sm:gap-4 shrink-0">
       {/* Left side: Back button & Room Details */}
@@ -119,7 +126,7 @@ export function RoomHeader({
         <ThemeToggle />
 
         {isOwner ? (
-          <AlertDialog>
+          <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
             <AlertDialogTrigger
               render={
                 <Button
@@ -143,10 +150,17 @@ export function RoomHeader({
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={onClearRoom}
+                  onClick={async () => {
+                    await onClearRoom();
+                    setClearDialogOpen(false);
+                  }}
                   variant={"destructive"}
                 >
-                  Clear room
+                  {
+                    isClearing ? (
+                      <><Spinner /> Clearing</>
+                    ) : "Clear room"
+                  }
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

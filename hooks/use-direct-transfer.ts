@@ -57,6 +57,7 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
   const transferGroupsRef = useRef(new Map<string, UploadGroup>());
   const transferControlsRef = useRef(new Map<string, DirectQueueControls>());
   const sendQueueRef = useRef(Promise.resolve());
+  const sessionVersionRef = useRef(0);
   const acknowledgementWaitersRef = useRef(new Map<string, { resolve: () => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }>());
   const earlyAcknowledgementsRef = useRef(new Set<string>());
   const pendingReceiveRef = useRef<{ transfer: DirectTransfer; files: ReceivedDirectFile[]; current?: { path: string; size: number; type: string; chunks: ArrayBuffer[] } } | null>(null);
@@ -71,6 +72,7 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
   }, []);
 
   const resetPeer = useCallback((reason?: string) => {
+    sessionVersionRef.current += 1;
     peerRef.current?.close(reason);
     peerRef.current = null;
     for (const [transferId, controller] of transferAbortControllersRef.current) {
@@ -84,8 +86,11 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
     }
     acknowledgementWaitersRef.current.clear();
     earlyAcknowledgementsRef.current.clear();
-    setSentTransfers((previous) => previous.map((transfer) => transfer.status === "transferring" ? { ...transfer, status: "failed", error: reason ?? "The connection closed." } : transfer));
-    setReceivedTransfers((previous) => previous.filter((transfer) => transfer.status !== "transferring"));
+    // Direct history and received blobs are scoped to one peer session.
+    setSentTransfers([]);
+    setReceivedTransfers([]);
+    transferGroupsRef.current.clear();
+    transferControlsRef.current.clear();
     pendingReceiveRef.current = null;
     setPendingConnection(null);
     setDirectMode(false);
@@ -279,8 +284,10 @@ export function useDirectTransfer(roomId: string, user: { id: string; name: stri
     };
     setSentTransfers((previous) => [transfer, ...previous.filter((item) => item.id !== transfer.id)]);
     const abortController = new AbortController();
+    const sessionVersion = sessionVersionRef.current;
     transferAbortControllersRef.current.set(group.id, abortController);
     const run = async () => {
+      if (sessionVersion !== sessionVersionRef.current) throw new Error("The previous direct session has ended.");
       const peer = peerRef.current;
       if (!peer) throw new Error("The direct connection is no longer available.");
       controls.update({ status: "uploading" });

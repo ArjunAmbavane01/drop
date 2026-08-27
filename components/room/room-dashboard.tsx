@@ -37,6 +37,7 @@ export function RoomDashboard({
   const [copied, setCopied] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [isDirectDialogOpen, setIsDirectDialogOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const isOwner = snapshot.room.ownerId === currentUser.id;
   const directTransfer = useDirectTransfer(snapshot.room.id, currentUser);
 
@@ -200,8 +201,11 @@ export function RoomDashboard({
   }
 
   async function handleClearSession() {
+    setIsClearing(true);
+
     try {
       await clearRoomAction(snapshot.room.id);
+
       remoteRevisionRef.current = localRevisionRef.current;
       lastRemoteTextRef.current = "";
       textValueRef.current = "";
@@ -211,9 +215,14 @@ export function RoomDashboard({
         text: { ...previous.text, value: "" },
         files: [],
       }));
+
       toast.success("Room cleared.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to clear the room.");
+      toast.error(
+        error instanceof Error ? error.message : "Unable to clear the room."
+      );
+    } finally {
+      setIsClearing(false);
     }
   }
 
@@ -226,6 +235,7 @@ export function RoomDashboard({
           isOwner={isOwner}
           onLeave={handleLeaveRoom}
           onClearRoom={handleClearSession}
+          isClearing={isClearing}
           onlineUserIds={onlineUserIds}
           currentUserId={currentUser.id}
         />

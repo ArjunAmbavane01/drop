@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
 import type { CompleteUploadInput } from "@/lib/validators";
@@ -532,6 +532,22 @@ export function useFileUpload(
     });
   }
 
+  const clearUploads = useCallback(() => {
+    activeConfirmationRef.current?.resolve("cancel");
+    for (const confirmation of confirmationQueueRef.current) confirmation.resolve("cancel");
+    confirmationQueueRef.current = [];
+    activeConfirmationRef.current = null;
+    pendingResolverRef.current = null;
+    setPendingFolderUpload(null);
+    setUploads((previous) => {
+      for (const upload of previous) upload.activeRequests.forEach((request) => request.abort());
+      return [];
+    });
+    for (const groupId of uploadGroupsRef.current.keys()) cancelledUploadIdsRef.current.add(groupId);
+    uploadGroupsRef.current.clear();
+    pendingMetadataGroupsRef.current.clear();
+  }, []);
+
   async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     dragDepthRef.current = 0;
@@ -663,5 +679,6 @@ export function useFileUpload(
     confirmFolderUpload,
     handleClipboardUpload,
     handleClipboardPaste,
+    clearUploads,
   };
 }
