@@ -122,7 +122,7 @@ export function useFileUpload(roomId: string) {
 
       const filesToValidate = group.files.map((f) => ({
         name: f.relativePath,
-        size: getEncryptedSize(f.file.size),
+        size: f.file.size,
       }));
 
       const validationResult = await preValidateUploadAction(roomId, filesToValidate);
@@ -198,6 +198,7 @@ export function useFileUpload(roomId: string) {
               "X-File-Name": encodeURIComponent(relativePath),
               "Content-Type": file.type || "application/octet-stream",
               "X-File-Size": String(encryptedSize),
+              "X-Original-File-Size": String(file.size),
               ...(validationResult.uploadToken ? { "X-Upload-Token": validationResult.uploadToken } : {}),
               ...(group.type === "folder" ? { "X-Upload-Id": group.id } : {}),
             },

@@ -20,6 +20,8 @@ import {
   getClientDeviceKey,
   unwrapFileKey,
   decryptChunk,
+  CHUNK_SIZE,
+  OVERHEAD_PER_CHUNK,
 } from "@/lib/e2ee";
 import { Files } from "@/components/animate-ui/components/radix/files";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -256,8 +258,8 @@ async function decryptStream(
   const decryptedChunks: Uint8Array[] = [];
   let buffer = new Uint8Array(0);
   let chunkIndex = 0;
-  const totalChunks = Math.ceil(originalSize / (1024 * 1024)) || 1;
-  const encryptedChunkSize = 1024 * 1024 + 28;
+  const totalChunks = Math.ceil(originalSize / CHUNK_SIZE) || 1;
+  const encryptedChunkSize = CHUNK_SIZE + OVERHEAD_PER_CHUNK;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -272,7 +274,7 @@ async function decryptStream(
     while (buffer.length > 0) {
       const expectedSize = chunkIndex < totalChunks - 1
         ? encryptedChunkSize
-        : (originalSize - chunkIndex * 1024 * 1024) + 28;
+        : (originalSize - chunkIndex * CHUNK_SIZE) + OVERHEAD_PER_CHUNK;
 
       if (buffer.length >= expectedSize) {
         const encryptedChunk = buffer.slice(0, expectedSize);
@@ -346,17 +348,8 @@ async function decryptStream(
     }
   }
 
-  async function handleDownloadFolder(uploadId: string) {
-    try {
-      const link = document.createElement("a");
-      link.href = `/api/folders/${uploadId}/download`;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to download folder.");
-    }
+  async function handleDownloadFolder(_uploadId: string) {
+    toast.error("Folder download is not supported with end-to-end encryption. Please download individual files.");
   }
 
   async function handleRefreshFiles() {

@@ -225,7 +225,9 @@ export async function getClientDeviceKey() {
   return { deviceId, keyPair };
 }
 
-export async function ensureDeviceKeyRegistered() {
+export async function ensureDeviceKeyRegistered(
+  registerPublicKeyAction: (deviceId: string, spki: string) => Promise<unknown>
+) {
   const deviceId = getOrCreateDeviceId();
   let keyPair = await getStoredKeyPair(deviceId);
   if (!keyPair) {
@@ -233,16 +235,17 @@ export async function ensureDeviceKeyRegistered() {
     await storeKeyPair(deviceId, keyPair);
   }
   const spki = await exportPublicKeySpki(keyPair.publicKey);
-  
-  const { registerPublicKeyAction } = await import("@/server/rooms/actions");
   await registerPublicKeyAction(deviceId, spki);
   return { deviceId, keyPair };
 }
 
-export async function syncMissingFileKeys(roomId: string) {
+export async function syncMissingFileKeys(
+  roomId: string,
+  getMissingWrapsAction: (roomId: string, deviceId: string) => Promise<{ missingWraps: { fileId: string; myWrappedKey: string; missingPublicKeys: { id: string; publicKey: string }[] }[] }>,
+  uploadWrappedKeysAction: (wraps: { fileId: string; publicKeyId: string; encryptedKey: string }[]) => Promise<unknown>
+) {
   try {
     const { deviceId, keyPair } = await getClientDeviceKey();
-    const { getMissingWrapsAction, uploadWrappedKeysAction } = await import("@/server/rooms/actions");
     const { missingWraps } = await getMissingWrapsAction(roomId, deviceId);
 
     if (!missingWraps || missingWraps.length === 0) {

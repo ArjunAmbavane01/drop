@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { MAX_TEXT_LENGTH } from "@/lib/constants";
+import { validateExclusionPattern } from "@/lib/exclusions";
+
+export const MAX_TEXT_LENGTH = 100_000;
 
 // ==========================================
 // Authentication Schemas
@@ -50,14 +52,8 @@ export const updateTextSchema = z.object({
 // Upload & File Schemas
 // ==========================================
 
-export const createUploadSchema = z.object({
-  fileName: z.string().min(1).max(260),
-  contentType: z.string().min(1).max(255),
-  sizeBytes: z.number().int().nonnegative(),
-  uploadId: z.string().uuid().optional().nullable(),
-});
-
 export const completeUploadSchema = z.object({
+  // Client-generated UUID so we can insert wrapped keys before the DB record exists
   fileId: z.string().uuid().optional(),
   objectKey: z.string().min(1),
   fileName: z.string().min(1).max(260),
@@ -65,6 +61,7 @@ export const completeUploadSchema = z.object({
   sizeBytes: z.number().int().nonnegative(),
   uploadId: z.string().uuid().optional().nullable(),
   folderName: z.string().trim().min(1).max(260).optional().nullable(),
+  // E2EE: per-member wrapped file keys
   wrappedKeys: z
     .array(
       z.object({
@@ -86,7 +83,29 @@ export const renameFolderSchema = z.object({
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;
 export type JoinRoomInput = z.infer<typeof joinRoomSchema>;
 export type UpdateTextInput = z.infer<typeof updateTextSchema>;
-export type CreateUploadInput = z.infer<typeof createUploadSchema>;
 export type CompleteUploadInput = z.infer<typeof completeUploadSchema>;
 export type RenameFileInput = z.infer<typeof renameFileSchema>;
 export type RenameFolderInput = z.infer<typeof renameFolderSchema>;
+
+export const updateExclusionsSchema = z.object({
+  patterns: z
+    .array(z.string())
+    .max(100, "You can configure up to 100 patterns.")
+    .superRefine((patterns, ctx) => {
+      for (const pattern of patterns) {
+        const error = validateExclusionPattern(pattern);
+        if (error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Pattern "${pattern}": ${error}`,
+          });
+        }
+      }
+    })
+    .transform((patterns) => {
+      const trimmed = patterns.map((p) => p.trim());
+      return Array.from(new Set(trimmed)).filter((p) => p.length > 0);
+    }),
+});
+
+export type UpdateExclusionsInput = z.infer<typeof updateExclusionsSchema>;

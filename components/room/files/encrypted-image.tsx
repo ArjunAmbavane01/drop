@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image, { type ImageProps } from "next/image";
 import { Loader2, ImageIcon } from "lucide-react";
 import type { RoomFile } from "@/types/rooms";
-import { getClientDeviceKey, unwrapFileKey, decryptChunk } from "@/lib/e2ee";
+import { getClientDeviceKey, unwrapFileKey, decryptChunk, CHUNK_SIZE, OVERHEAD_PER_CHUNK } from "@/lib/e2ee";
 import { getFileDownloadKeyAction } from "@/server/rooms/actions";
 
 // Global cache for decrypted thumbnail URLs: fileId -> blobUrl
@@ -24,8 +24,8 @@ async function decryptFullBlob(
   const decryptedChunks: Uint8Array[] = [];
   let buffer = new Uint8Array(0);
   let chunkIndex = 0;
-  const totalChunks = Math.ceil(originalSize / (1024 * 1024)) || 1;
-  const encryptedChunkSize = 1024 * 1024 + 28;
+  const totalChunks = Math.ceil(originalSize / CHUNK_SIZE) || 1;
+  const encryptedChunkSize = CHUNK_SIZE + OVERHEAD_PER_CHUNK;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -40,7 +40,7 @@ async function decryptFullBlob(
     while (buffer.length > 0) {
       const expectedSize = chunkIndex < totalChunks - 1
         ? encryptedChunkSize
-        : (originalSize - chunkIndex * 1024 * 1024) + 28;
+        : (originalSize - chunkIndex * CHUNK_SIZE) + OVERHEAD_PER_CHUNK;
 
       if (buffer.length >= expectedSize) {
         const encryptedChunk = buffer.slice(0, expectedSize);

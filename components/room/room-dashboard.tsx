@@ -11,6 +11,9 @@ import {
   leaveRoomAction,
   clearRoomAction,
   saveTextAction,
+  registerPublicKeyAction,
+  getMissingWrapsAction,
+  uploadWrappedKeysAction,
 } from "@/server/rooms/actions";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { useRoomEvents } from "@/hooks/use-room-events";
@@ -124,7 +127,7 @@ export function RoomDashboard({
             files: [],
           };
         case "member.joined":
-          void syncMissingFileKeys(snapshot.room.id);
+          void syncMissingFileKeys(snapshot.room.id, getMissingWrapsAction, uploadWrappedKeysAction);
           return previous.members.some((member) => member.id === event.payload.member.id)
             ? previous
             : { ...previous, members: [...previous.members, event.payload.member] };
@@ -144,8 +147,8 @@ export function RoomDashboard({
   useEffect(() => {
     async function initE2ee() {
       try {
-        await ensureDeviceKeyRegistered();
-        await syncMissingFileKeys(snapshot.room.id);
+        await ensureDeviceKeyRegistered(registerPublicKeyAction);
+        await syncMissingFileKeys(snapshot.room.id, getMissingWrapsAction, uploadWrappedKeysAction);
       } catch (err) {
         console.error("Failed to initialize E2EE keys:", err);
       }
