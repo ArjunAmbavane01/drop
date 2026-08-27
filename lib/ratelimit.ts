@@ -21,7 +21,7 @@ export function getUploadRateLimiter() {
   if (!uploadRateLimiter) {
     uploadRateLimiter = new Ratelimit({
       redis: getRedis(),
-      limiter: Ratelimit.slidingWindow(LIMITS.UPLOAD_LIMIT_FILES_PER_MIN, "1 m"),
+      limiter: Ratelimit.slidingWindow(LIMITS.MAX_UPLOAD_SESSIONS_PER_MIN, "1 m"),
       analytics: true,
       prefix: "drop:ratelimit:upload",
     });

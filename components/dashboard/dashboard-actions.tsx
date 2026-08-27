@@ -31,6 +31,7 @@ import {
   type CreateRoomInput,
   type JoinRoomInput,
 } from "@/lib/validators";
+import { Spinner } from "../ui/spinner";
 
 interface DashboardActionsProps {
   roomCount: number;
@@ -187,6 +188,7 @@ export function DashboardActions({
                   <Button
                     type="button"
                     variant="ghost"
+                    disabled={isCreating}
                     onClick={() => {
                       setCreateOpen(false);
                       createForm.reset();
@@ -195,7 +197,17 @@ export function DashboardActions({
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isCreating}>
-                    {isCreating ? "Creating..." : "Create"}
+                    {isCreating ? (
+                      <>
+                        <Spinner />
+                        Creating
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="size-4" />
+                        Create
+                      </>
+                    )}
                   </Button>
                 </DialogFooter>
               </form>
@@ -204,7 +216,10 @@ export function DashboardActions({
         )}
 
         {/* Join Room Dialog */}
-        <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
+        <Dialog open={joinOpen} onOpenChange={(open) => {
+          if (isJoining) return;
+          setJoinOpen(open);
+        }}>
           <DialogTrigger render={
             <Button variant="secondary" className="w-full flex-1 sm:w-auto">
               <Key className="size-4" />
@@ -254,6 +269,7 @@ export function DashboardActions({
                 <Button
                   type="button"
                   variant="ghost"
+                  disabled={isJoining}
                   onClick={() => {
                     setJoinOpen(false);
                     joinForm.reset();
@@ -265,7 +281,17 @@ export function DashboardActions({
                   type="submit"
                   disabled={isJoining || !joinForm.formState.isValid}
                 >
-                  {isJoining ? "Joining..." : "Join"}
+                  {isJoining ? (
+                    <>
+                      <Spinner />
+                      Joining
+                    </>
+                  ) : (
+                    <>
+                      <Key className="size-4" />
+                      Join
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>

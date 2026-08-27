@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
 
 import "@/app/globals.css";
 import { Providers } from "@/components/providers";
@@ -6,8 +7,13 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Drop",
-  description: "A private cross-device clipboard for text, files, folders, and screenshots.",
+  description: "A minimal cross-device clipboard for text, files, folders, and screenshots.",
 };
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+});
 
 export default function RootLayout({
   children,
@@ -19,6 +25,7 @@ export default function RootLayout({
       <body
         className={cn(
           "min-h-screen bg-background font-sans text-foreground antialiased",
+          outfit.variable,
         )}
       >
         <Providers>{children}</Providers>

@@ -100,14 +100,14 @@ export function FolderRow({
   return (
     <AnimateFolderItem
       value={folder.uploadId}
-      className={cn("rounded-lg border-none transition-colors w-full", isSelected && "bg-muted/50")}
+      className={cn("rounded-lg border-none transition-colors w-full")}
     >
       <AnimateFolderTrigger
         icon={FolderItemIcon}
         className="flex items-center justify-between w-full min-w-0 cursor-pointer gap-3"
       >
-        <div className="space-y-0.5 min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground leading-snug" title={folder.name}>{folder.name}</p>
+        <div className="space-y-0.5 min-w-0 flex-1 pb-0.5">
+          <p className="truncate text-sm font-medium text-foreground leading-normal" title={folder.name}>{folder.name}</p>
           <p className="text-xs text-muted-foreground leading-normal">
             {folder.files.length} {folder.files.length === 1 ? "file" : "files"} ({formatFileSize(folder.sizeBytes)}) • {formatRelativeTime(new Date(folder.uploadedAt))}
           </p>

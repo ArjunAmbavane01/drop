@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldError } from "@/components/ui/field";
 import { createRoomSchema, type CreateRoomInput } from "@/lib/validators";
 import type { Room } from "@/types/rooms";
+import { Spinner } from "../ui/spinner";
+import { toast } from "sonner";
 
 interface RenameRoomDialogProps {
   open: boolean;
@@ -45,8 +47,14 @@ export function RenameRoomDialog({
   }, [room, reset]);
 
   const onSubmit = async (data: CreateRoomInput) => {
-    await onRename(data.roomName);
-    onOpenChange(false);
+    try {
+      await onRename(data.roomName);
+      reset();
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Failed to rename room:", error);
+      toast.error("Failed to rename room. Please try again.");
+    }
   };
 
   return (
@@ -81,6 +89,7 @@ export function RenameRoomDialog({
             <Button
               type="button"
               variant="ghost"
+              disabled={isRenaming}
               onClick={() => {
                 onOpenChange(false);
                 reset();
@@ -89,7 +98,14 @@ export function RenameRoomDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isRenaming}>
-              {isRenaming ? "Saving..." : "Save"}
+              {isRenaming ? (
+                <>
+                  <Spinner />
+                  Saving
+                </>
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </form>

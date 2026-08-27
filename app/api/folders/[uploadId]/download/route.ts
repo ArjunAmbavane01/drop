@@ -1,10 +1,6 @@
 import { eq } from "drizzle-orm";
-import { PassThrough } from "stream";
-import type { Archiver, ArchiverOptions } from "archiver";
-import * as archiverModule from "archiver";
-
-type ArchiverFactory = (format: "zip" | "tar" | string, options?: ArchiverOptions) => Archiver;
-const archiver = ((archiverModule as unknown as { default?: ArchiverFactory }).default || archiverModule) as unknown as ArchiverFactory;
+import { PassThrough, Readable } from "stream";
+import { ZipArchive } from "archiver";
 
 import { getDb } from "@/db";
 import { uploads } from "@/db/schema";
@@ -40,7 +36,7 @@ export async function GET(
       return jsonError("No files found in folder.", 404);
     }
 
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 6 } });
     const stream = new PassThrough();
     archive.pipe(stream);
 
@@ -60,7 +56,7 @@ export async function GET(
 
     const safeFolderName = upload.name.replace(/[^a-zA-Z0-9_-]/g, "_") || "folder";
 
-    return new Response(stream as unknown as BodyInit, {
+    return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${safeFolderName}.zip"`,

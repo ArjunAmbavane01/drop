@@ -1,8 +1,10 @@
-import { SSE_KEEPALIVE_MS, SSE_POLL_INTERVAL_MS } from "@/lib/constants";
 import { jsonError } from "@/lib/http";
 import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomAccess } from "@/server/rooms/auth";
 import { getRoomEvents } from "@/server/rooms/events";
+
+const SSE_POLL_INTERVAL_MS = 1_500;
+const SSE_KEEPALIVE_MS = 15_000;
 
 export const runtime = "nodejs";
 
@@ -88,7 +90,7 @@ export async function GET(
           if (closed) return;
           try {
             controller.enqueue(encoder.encode(": keepalive\n\n"));
-          } catch {}
+          } catch { }
         }, SSE_KEEPALIVE_MS);
 
         const abort = () => {
@@ -116,7 +118,7 @@ export async function GET(
 
           try {
             controller.close();
-          } catch {}
+          } catch { }
         };
 
         request.signal.addEventListener("abort", abort);

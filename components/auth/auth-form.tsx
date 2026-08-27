@@ -6,7 +6,6 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock, Mail, User } from "lucide-react";
 import { toast } from "sonner";
-
 import AnimatedInput from "@/components/ui/smoothui/animated-input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,6 +16,7 @@ import {
   type SignInValues,
   type SignUpValues,
 } from "@/lib/validators";
+import BrandTextLogo from "../ui/brand-text-logo";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -67,11 +67,20 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
 
   return (
     <div className="flex flex-col items-center w-full space-y-8 sm:space-y-12 mb-5 sm:mb-8">
-      <div className="text-center space-y-5">
-        <h1 className="text-3xl font-medium tracking-tight">
-          {mode === "sign-up"
-            ? "Create your Drop account"
-            : "Sign in to Drop"}
+      <div className="flex flex-col items-center text-center space-y-5">
+        <h1 className="flex items-center gap-1 text-3xl font-medium tracking-tight">
+          {mode === "sign-up" ? (
+            <div className="flex items-center">
+              <span className="mr-2">Create your</span>
+              <BrandTextLogo />
+              <span className="ml-2">account</span>
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <span className="mr-2">Sign in to</span>
+              <BrandTextLogo />
+            </div>
+          )}
         </h1>
 
         <p className="text-muted-foreground text-balance">
@@ -155,8 +164,8 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
             <>
               <Spinner />
               {mode === "sign-up"
-                ? "Creating account..."
-                : "Signing in..."}
+                ? "Creating account"
+                : "Signing in"}
             </>
           ) : mode === "sign-up" ? (
             "Create account"

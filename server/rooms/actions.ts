@@ -8,6 +8,8 @@ import { getDb } from "@/db";
 import { LIMITS } from "@/lib/limits";
 import { getRedis, getJoinRateLimiter } from "@/lib/ratelimit";
 import { validateUploadQuota } from "@/server/rooms/quota";
+import { DEFAULT_EXCLUSIONS, compileExclusionMatcher } from "@/lib/exclusions";
+import { updateExclusionsSchema, type UpdateExclusionsInput } from "@/lib/validators";
 import {
   users,
   rooms,
@@ -22,7 +24,7 @@ import { getEncryptedSize } from "@/lib/e2ee";
 import { requireRequestSession } from "@/server/auth/request";
 import { requireRoomAccess, requireRoomOwner } from "@/server/rooms/auth";
 import { createRoomEvent } from "@/server/rooms/events";
-import { createRoomCode } from "@/lib/utils/room";
+import { createRoomCode } from "@/lib/room";
 import {
   createRoomSchema,
   joinRoomSchema,
@@ -101,7 +103,7 @@ export async function joinRoomAction(input: JoinRoomInput) {
 
   const { success } = await getJoinRateLimiter().limit(session.user.id);
   if (!success) {
-    throw new Error("Join rate limit exceeded. You can join up to 10 rooms per minute.");
+    throw new Error(`Join rate limit exceeded. You can join up to ${LIMITS.JOIN_LIMIT_PER_MIN} rooms per minute.`);
   }
 
   const [room] = await getDb()
@@ -769,19 +771,32 @@ export async function getFileDownloadUrlAction(fileId: string) {
 
 export async function preValidateUploadAction(
   roomId: string,
-  files: { name: string; size: number }[]
+  files: { name: string; size: number }[],
+  options?: { isFolder?: boolean; includeExcluded?: boolean }
 ) {
   const session = await requireRequestSession();
   await requireRoomAccess(roomId, session.user.id);
 
   try {
-    await validateUploadQuota(session.user.id, roomId, files);
+    let filesToValidate = files;
+    if (options?.isFolder && !options?.includeExcluded) {
+      const [user] = await getDb()
+        .select({ uploadExclusions: users.uploadExclusions })
+        .from(users)
+        .where(eq(users.id, session.user.id))
+        .limit(1);
+      const exclusions = user?.uploadExclusions ?? DEFAULT_EXCLUSIONS;
+      const matcher = compileExclusionMatcher(exclusions);
+      filesToValidate = files.filter((f) => !matcher(f.name));
+    }
+
+    await validateUploadQuota(session.user.id, roomId, filesToValidate);
 
     const uploadToken = randomUUID();
     const tokenData = {
       userId: session.user.id,
       roomId,
-      files: files.map((f) => ({ name: f.name, size: f.size })),
+      files: filesToValidate.map((f) => ({ name: f.name, size: f.size })),
     };
 
     await getRedis().set(
@@ -792,11 +807,13 @@ export async function preValidateUploadAction(
 
     return { success: true, uploadToken };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (message.startsWith("file-too-large:")) {
-      const fileName = message.replace("file-too-large:", "");
-      return { success: false, error: "file-too-large", fileName };
+    const err = error as Error;
+    const message = err.message || "";
+
+    if (message === "too-many-files") {
+      return { success: false, error: "too-many-files" };
     }
+
     if (
       [
         "room-quota-exceeded",
@@ -806,6 +823,24 @@ export async function preValidateUploadAction(
     ) {
       return { success: false, error: message };
     }
+
+    const colonErrors = [
+      "file-too-large",
+      "path-too-long",
+      "invalid-path",
+      "filename-too-long",
+      "folder-depth-exceeded",
+      "duplicate-path",
+      "conflicting-path",
+    ];
+
+    for (const prefix of colonErrors) {
+      if (message.startsWith(`${prefix}:`)) {
+        const detail = message.substring(prefix.length + 1);
+        return { success: false, error: prefix, detail, fileName: detail };
+      }
+    }
+
     return {
       success: false,
       error: "unknown",
@@ -1045,4 +1080,46 @@ export async function getFileDownloadKeyAction(fileId: string, deviceId: string)
   }
 
   return { encryptedKey: wrap.encryptedKey };
+}
+
+export async function getUserExclusionsAction() {
+  const session = await requireRequestSession();
+  const [userRecord] = await getDb()
+    .select({ uploadExclusions: users.uploadExclusions })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  const isCustomized = userRecord?.uploadExclusions !== null;
+  const exclusions = userRecord?.uploadExclusions ?? DEFAULT_EXCLUSIONS;
+
+  return { exclusions, isCustomized };
+}
+
+export async function saveExclusionsAction(input: UpdateExclusionsInput) {
+  const session = await requireRequestSession();
+  const validatedInput = updateExclusionsSchema.parse(input);
+
+  await getDb()
+    .update(users)
+    .set({
+      uploadExclusions: validatedInput.patterns,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, session.user.id));
+
+  return { success: true, exclusions: validatedInput.patterns };
+}
+
+export async function restoreDefaultExclusionsAction() {
+  const session = await requireRequestSession();
+  await getDb()
+    .update(users)
+    .set({
+      uploadExclusions: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, session.user.id));
+
+  return { success: true, exclusions: DEFAULT_EXCLUSIONS };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw, X } from "lucide-react";
+import { Folder, RefreshCw, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -12,20 +12,33 @@ import type { UploadState } from "./types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { formatFileSize } from "@/lib/format";
+import { FileIcon } from "../file-icons";
+import { Spinner } from "@/components/ui/spinner";
+
+function getUploadMetadata(upload: UploadState) {
+  const parts: string[] = [];
+  if (upload.totalBytes > 0) parts.push(formatFileSize(upload.totalBytes));
+  if (upload.fileCount) {
+    parts.push(`${upload.fileCount.toLocaleString()} ${upload.type === "folder" ? "files" : "file"}`);
+  }
+  return parts.join(" · ");
+}
 
 interface UploadQueueProps {
   uploads: UploadState[];
   onRetry: (id: string) => void;
   onCancel: (id: string) => void;
+  title?: string;
 }
 
-export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
+export function UploadQueue({ uploads, onRetry, onCancel, title = "Uploading" }: UploadQueueProps) {
   return (
     <AnimatePresence>
       {uploads.length > 0 && (
         <div className="space-y-2 shrink-0 flex flex-col min-h-0">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none shrink-0">
-            Uploading ({uploads.length})
+            {title} ({uploads.length})
           </h3>
           <ScrollArea
             className={cn(
@@ -44,30 +57,46 @@ export function UploadQueue({ uploads, onRetry, onCancel }: UploadQueueProps) {
                   transition={{ duration: 0.2 }}
                   className="flex items-center gap-2 sm:gap-3 rounded-lg border border-border/60 bg-card/40 dark:bg-card/20 px-2 sm:px-3.5 py-2 text-xs"
                 >
-                  <p
-                    className="font-medium text-foreground flex-1 min-w-0 truncate"
-                    title={upload.name}
-                  >
-                    {upload.name}
-                  </p>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="flex justify-center items-center size-6 text-muted-foreground">
+                      {upload.type === "folder"
+                        ? <Folder className="size-4" />
+                        : <FileIcon fileName={upload.name} className="size-4" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">
+                        {upload.name}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {getUploadMetadata(upload)}
+                      </p>
+                    </div>
+                  </div>
 
                   <div className="w-16 sm:w-24 md:w-32 shrink-0">
                     {upload.status === "error" ? (
                       <p className="text-xs text-destructive truncate">
                         {upload.error || "Upload failed"}
                       </p>
+                    ) : upload.status === "preparing" ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Spinner className="size-3.5" />
+                        <span className="hidden sm:inline">Preparing</span>
+                      </div>
                     ) : (
                       <Progress value={upload.progress} className="w-full" />
                     )}
                   </div>
 
-                  <span className="text-muted-foreground tabular-nums shrink-0 text-right w-9 sm:w-10">
-                    {upload.status === "complete"
-                      ? "100%"
-                      : upload.status === "error"
-                        ? "Failed"
-                        : `${upload.progress}%`}
-                  </span>
+                  {(upload.status !== "preparing") && (
+                    <span className="text-muted-foreground tabular-nums shrink-0 text-right">
+                      {upload.status === "complete"
+                        ? "100%"
+                        : upload.status === "error"
+                          ? "Failed"
+                          : `${upload.progress}%`}
+                    </span>
+                  )}
 
                   <div className="flex items-center shrink-0">
                     {upload.status === "error" && (

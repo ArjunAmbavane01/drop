@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { RefreshCw, Trash2, Settings, Plus, X, Check, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { MAX_BULK_SELECTION } from "@/lib/constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { validateExclusionPattern } from "@/lib/exclusions";
 import {
   deleteFileAction,
   deleteFilesAction,
@@ -14,6 +23,9 @@ import {
   renameFileAction,
   renameFolderAction,
   refreshRoomFilesAction,
+  getUserExclusionsAction,
+  saveExclusionsAction,
+  restoreDefaultExclusionsAction,
 } from "@/server/rooms/actions";
 import type { RoomFile } from "@/types/rooms";
 import {
@@ -23,6 +35,7 @@ import {
   CHUNK_SIZE,
   OVERHEAD_PER_CHUNK,
 } from "@/lib/e2ee";
+import { Zip, ZipPassThrough } from "fflate";
 import { Files } from "@/components/animate-ui/components/radix/files";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -47,7 +60,12 @@ import { EmptyFiles } from "./files/empty-files";
 import { FileRow } from "./files/file-row";
 import { FolderRow } from "./files/folder-row";
 import { FileRenameDialog, FolderRenameDialog } from "./files/rename-dialogs";
-import type { FolderItem } from "./files/types";
+import type { FolderItem, UploadMode } from "./files/types";
+import type { DirectDevice, DirectQueueControls, DirectTransfer } from "@/lib/direct-transfer/types";
+import { DirectTransfers } from "./files/direct-transfers";
+import { downloadDirectTransfer } from "@/lib/direct-transfer/download";
+
+const MAX_BULK_SELECTION = 50;
 
 interface FilesPanelProps {
   roomId: string;
@@ -59,6 +77,13 @@ interface FilesPanelProps {
   onFolderDelete: (uploadId: string) => void;
   onBulkDelete?: (deletedFileIds: string[], deletedFolderIds: string[]) => void;
   onRestoreFiles?: (files: RoomFile[]) => void;
+  directMode: boolean;
+  directConnection: { device: DirectDevice; status: "requesting" | "connecting" | "connected" } | null;
+  onDirectGroup: (group: import("./files/types").UploadGroup, controls: DirectQueueControls) => void;
+  onDirectCancel: (id: string) => void;
+  onRetrySentTransfer: (id: string) => void;
+  receivedTransfers: DirectTransfer[];
+  sentTransfers: DirectTransfer[];
 }
 
 export function FilesPanel({
@@ -71,6 +96,13 @@ export function FilesPanel({
   onFolderDelete,
   onBulkDelete,
   onRestoreFiles,
+  directMode,
+  directConnection,
+  onDirectGroup,
+  onDirectCancel,
+  onRetrySentTransfer,
+  receivedTransfers,
+  sentTransfers,
 }: FilesPanelProps) {
   const [renameTarget, setRenameTarget] = useState<RoomFile | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -87,6 +119,45 @@ export function FilesPanel({
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
+  const [exclusions, setExclusions] = useState<string[]>([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchExclusions() {
+      try {
+        const data = await getUserExclusionsAction();
+        setExclusions(data.exclusions);
+      } catch {
+        toast.error("Failed to load upload exclusions.");
+      }
+    }
+    fetchExclusions();
+  }, []);
+
+  async function handleSaveExclusions(newPatterns: string[]) {
+    try {
+      const res = await saveExclusionsAction({ patterns: newPatterns });
+      setExclusions(res.exclusions);
+      toast.success("Upload exclusions updated.");
+    } catch (err) {
+      const errorVal = err as Error;
+      toast.error(errorVal.message || "Failed to update exclusions.");
+      throw err;
+    }
+  }
+
+  async function handleRestoreExclusions() {
+    try {
+      const res = await restoreDefaultExclusionsAction();
+      setExclusions(res.exclusions);
+      toast.success("Default upload exclusions restored.");
+    } catch (err) {
+      const errorVal = err as Error;
+      toast.error(errorVal.message || "Failed to restore default exclusions.");
+      throw err;
+    }
+  }
+
   const {
     uploads,
     isDragging,
@@ -99,7 +170,30 @@ export function FilesPanel({
     handleDragLeave,
     cancelUpload,
     handleRetryUpload,
-  } = useFileUpload(roomId);
+    pendingFolderUpload,
+    confirmFolderUpload,
+    handleClipboardUpload,
+    handleClipboardPaste,
+    clearUploads,
+  } = useFileUpload(roomId, exclusions, {
+    mode: (directMode ? "direct" : "persistent") as UploadMode,
+    onDirectGroup,
+    onDirectCancel,
+  });
+
+  const wasDirectModeRef = useRef(directMode);
+  useEffect(() => {
+    if (wasDirectModeRef.current && !directMode) clearUploads();
+    wasDirectModeRef.current = directMode;
+  }, [clearUploads, directMode]);
+
+  async function handleDownloadDirectTransfer(transfer: DirectTransfer) {
+    try {
+      await downloadDirectTransfer(transfer.name, transfer.files ?? [], transfer.type);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download direct transfer.");
+    }
+  }
 
   const groupedItems = useMemo(() => groupFilesAndFolders(files), [files]);
   const currentItemIds = useMemo(() => {
@@ -132,11 +226,8 @@ export function FilesPanel({
       let changed = false;
       const next = new Set<string>();
       for (const id of previous) {
-        if (currentItemIds.has(id)) {
-          next.add(id);
-        } else {
-          changed = true;
-        }
+        if (currentItemIds.has(id)) next.add(id);
+        else changed = true;
       }
       return changed ? next : previous;
     });
@@ -248,14 +339,14 @@ export function FilesPanel({
     }
   }
 
-async function decryptStream(
+async function decryptStreamWithHandler(
   encryptedStream: ReadableStream<Uint8Array>,
   fileKey: CryptoKey,
   fileId: string,
-  originalSize: number
-): Promise<Blob> {
+  originalSize: number,
+  onChunk: (chunk: Uint8Array, isLast: boolean) => void | Promise<void>
+): Promise<void> {
   const reader = encryptedStream.getReader();
-  const decryptedChunks: Uint8Array[] = [];
   let buffer = new Uint8Array(0);
   let chunkIndex = 0;
   const totalChunks = Math.ceil(originalSize / CHUNK_SIZE) || 1;
@@ -285,10 +376,12 @@ async function decryptStream(
           chunkIndex,
           totalChunks
         );
-        decryptedChunks.push(decrypted);
 
         buffer = buffer.slice(expectedSize);
         chunkIndex++;
+
+        const isLast = chunkIndex === totalChunks;
+        await onChunk(decrypted, isLast);
       } else {
         break;
       }
@@ -298,7 +391,24 @@ async function decryptStream(
       break;
     }
   }
+}
 
+async function decryptStream(
+  encryptedStream: ReadableStream<Uint8Array>,
+  fileKey: CryptoKey,
+  fileId: string,
+  originalSize: number
+): Promise<Blob> {
+  const decryptedChunks: Uint8Array[] = [];
+  await decryptStreamWithHandler(
+    encryptedStream,
+    fileKey,
+    fileId,
+    originalSize,
+    (chunk) => {
+      decryptedChunks.push(chunk);
+    }
+  );
   return new Blob(decryptedChunks as unknown as BlobPart[]);
 }
 
@@ -348,8 +458,84 @@ async function decryptStream(
     }
   }
 
-  async function handleDownloadFolder(_uploadId: string) {
-    toast.error("Folder download is not supported with end-to-end encryption. Please download individual files.");
+  async function handleDownloadFolder(uploadId: string) {
+    const toastId = toast.loading("Preparing folder download...");
+    try {
+      const folderFiles = files.filter((f) => f.uploadId === uploadId);
+      if (folderFiles.length === 0) {
+        toast.error("Folder is empty or not found.", { id: toastId });
+        return;
+      }
+
+      const folderName = folderFiles[0].uploadName || "folder";
+      const { deviceId, keyPair } = await getClientDeviceKey();
+
+      const zipChunks: Uint8Array[] = [];
+      const zip = new Zip((err, chunk) => {
+        if (err) throw err;
+        zipChunks.push(chunk);
+      });
+
+      for (let i = 0; i < folderFiles.length; i++) {
+        const file = folderFiles[i];
+        toast.loading(
+          `Processing file ${i + 1} of ${folderFiles.length}: ${file.fileName.split("/").pop() || file.fileName}...`,
+          { id: toastId }
+        );
+
+        const { url } = await getFileDownloadUrlAction(file.id);
+        const { encryptedKey } = await getFileDownloadKeyAction(file.id, deviceId);
+        const fileKey = await unwrapFileKey(encryptedKey, keyPair.privateKey);
+
+        const response = await fetch(url);
+        if (!response.ok || !response.body) {
+          throw new Error(`Failed to download file "${file.fileName}".`);
+        }
+
+        let zipPath = file.fileName;
+        if (!zipPath.startsWith(`${folderName}/`)) {
+          zipPath = `${folderName}/${zipPath}`;
+        }
+
+        const zipFile = new ZipPassThrough(zipPath);
+        zip.add(zipFile);
+
+        await decryptStreamWithHandler(
+          response.body as unknown as ReadableStream<Uint8Array>,
+          fileKey,
+          file.id,
+          file.sizeBytes,
+          (chunk, isLast) => {
+            zipFile.push(chunk, isLast);
+          }
+        );
+      }
+
+      zip.end();
+
+      const safeFolderName = folderName.replace(/[^a-zA-Z0-9_-]/g, "_") || "folder";
+      const zipBlob = new Blob(zipChunks as unknown as BlobPart[], {
+        type: "application/zip",
+      });
+
+      const blobUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${safeFolderName}.zip`;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success("Folder download complete!", { id: toastId });
+    } catch (error) {
+      console.error("Folder download error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Unable to download folder.",
+        { id: toastId }
+      );
+    }
   }
 
   async function handleRefreshFiles() {
@@ -442,6 +628,7 @@ async function decryptStream(
       {/* Drag & Drop Upload Dropzone */}
       <div className="shrink-0">
         <UploadDropzone
+          mode={directMode ? "direct" : "persistent"}
           isDragging={isDragging}
           fileInputRef={fileInputRef}
           folderInputRef={folderInputRef}
@@ -450,6 +637,8 @@ async function decryptStream(
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
+          onClipboardPaste={handleClipboardPaste}
+          onClipboardUpload={handleClipboardUpload}
         />
       </div>
 
@@ -458,11 +647,16 @@ async function decryptStream(
         uploads={uploads}
         onRetry={handleRetryUpload}
         onCancel={cancelUpload}
+        title={directMode ? "Sending directly" : "Uploading"}
       />
 
+      {directConnection?.status === "connected" && (
+        <DirectTransfers received={receivedTransfers} sent={sentTransfers} onDownload={handleDownloadDirectTransfer} onRetry={onRetrySentTransfer} />
+      )}
+
       {/* Uploaded Files List */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex items-center justify-between mb-2 select-none shrink-0 min-h-7">
+      {directConnection?.status !== "connected" && <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+        <div className="flex items-center justify-between select-none shrink-0">
           <div className="flex items-center gap-2">
             {groupedItems.length > 0 && (
               <Checkbox
@@ -483,22 +677,21 @@ async function decryptStream(
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {selectedIds.size > 0 && (
               <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
                 <AlertDialogTrigger
                   render={
                     <Button
                       variant="destructive"
-                      size="xs"
+                      size="sm"
                       disabled={isBulkDeleting}
+                      className="size-9 px-0 sm:size-auto sm:h-8 sm:px-2"
                     >
-                      {isBulkDeleting ? (
-                        <Spinner className="size-3.5" />
-                      ) : (
-                        <Trash2 className="size-3.5" />
-                      )}
-                      <span>Delete ({selectedIds.size})</span>
+                      {isBulkDeleting ? <Spinner /> : <Trash2 />}
+                      <span className="hidden sm:inline">
+                        Delete ({selectedIds.size})
+                      </span>
                     </Button>
                   }
                 />
@@ -527,16 +720,19 @@ async function decryptStream(
 
             <Button
               variant="ghost"
-              size="xs"
+              size="icon"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleRefreshFiles}
               disabled={isRefreshing}
             >
-              {isRefreshing ? (
-                <Spinner className="size-3.5" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-              <span>Refresh</span>
+              {isRefreshing ? <Spinner /> : <RefreshCw />}
             </Button>
           </div>
         </div>
@@ -599,7 +795,7 @@ async function decryptStream(
             </ScrollArea>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Rename File Dialog */}
       <FileRenameDialog
@@ -618,6 +814,304 @@ async function decryptStream(
         onClose={() => setRenameFolderTarget(null)}
         onSubmit={handleRenameFolderSubmit}
       />
+
+      {/* Exclusions Settings Dialog */}
+      {isSettingsOpen && (
+        <ExclusionsDialog
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          exclusions={exclusions}
+          onSave={handleSaveExclusions}
+          onRestore={handleRestoreExclusions}
+        />
+      )}
+
+      {/* Confirmation dialog for folder uploads with exclusions */}
+      <Dialog open={Boolean(pendingFolderUpload)} onOpenChange={(open) => !open && confirmFolderUpload("cancel")}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload folder with exclusions?</DialogTitle>
+            <DialogDescription>
+              This folder contains <span className="font-semibold text-foreground">{pendingFolderUpload?.excludedCount.toLocaleString()}</span> files matching your exclusions. Would you like to skip them?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => confirmFolderUpload("cancel")}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => confirmFolderUpload("skip")}
+              className="cursor-pointer"
+            >
+              Skip Excluded (Recommended)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+interface ExclusionsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  exclusions: string[];
+  onSave: (newExclusions: string[]) => Promise<void>;
+  onRestore: () => Promise<void>;
+}
+
+export function ExclusionsDialog({
+  isOpen,
+  onClose,
+  exclusions,
+  onSave,
+  onRestore,
+}: ExclusionsDialogProps) {
+  const [localPatterns, setLocalPatterns] = useState<string[]>(exclusions);
+  const [newPattern, setNewPattern] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAdd = () => {
+    const trimmed = newPattern.trim();
+    if (!trimmed) return;
+    const err = validateExclusionPattern(trimmed);
+    if (err) {
+      setError(err);
+      return;
+    }
+    if (localPatterns.includes(trimmed)) {
+      setError("Pattern already exists.");
+      return;
+    }
+    if (localPatterns.length >= 100) {
+      setError("Maximum of 100 patterns allowed.");
+      return;
+    }
+    setLocalPatterns([...localPatterns, trimmed]);
+    setNewPattern("");
+    setError(null);
+  };
+
+  const handleRemove = (index: number) => {
+    setLocalPatterns(localPatterns.filter((_, i) => i !== index));
+    if (editingIndex === index) {
+      setEditingIndex(null);
+    }
+    setError(null);
+  };
+
+  const handleStartEdit = (index: number) => {
+    setEditingIndex(index);
+    setEditingValue(localPatterns[index]);
+    setError(null);
+  };
+
+  const handleSaveEdit = (index: number) => {
+    const trimmed = editingValue.trim();
+    if (!trimmed) return;
+    const err = validateExclusionPattern(trimmed);
+    if (err) {
+      setError(err);
+      return;
+    }
+    const exists = localPatterns.some((p, i) => p === trimmed && i !== index);
+    if (exists) {
+      setError("Pattern already exists.");
+      return;
+    }
+    const next = [...localPatterns];
+    next[index] = trimmed;
+    setLocalPatterns(next);
+    setEditingIndex(null);
+    setError(null);
+  };
+
+  const handleRestore = async () => {
+    setError(null);
+    setSaving(true);
+    try {
+      await onRestore();
+      onClose();
+    } catch (err) {
+      const errorVal = err as Error;
+      setError(errorVal.message || "Failed to restore defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    setSaving(true);
+    try {
+      await onSave(localPatterns);
+      onClose();
+    } catch (err) {
+      const errorVal = err as Error;
+      setError(errorVal.message || "Failed to save exclusions.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Upload Exclusions</DialogTitle>
+          <DialogDescription>
+            Skip matching files/folders recursively during folder uploads.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <div className="text-xs font-medium text-destructive bg-destructive/10 px-2.5 py-1.5 rounded-lg border border-destructive/20 select-none">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 ">
+          <Input
+            value={newPattern}
+            onChange={(e) => {
+              setNewPattern(e.target.value);
+              setError(null);
+            }}
+            placeholder="e.g. node_modules, *.log"
+            className="h-9 text-sm  min-w-0"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+          />
+          <Button
+            size={"sm"}
+            className="h-9"
+            onClick={handleAdd}
+          >
+            <Plus />
+            Add
+          </Button>
+        </div>
+
+        <ScrollArea className="h-64 border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5">
+          <div className="space-y-1 pr-3">
+          {localPatterns.length === 0 ? (
+            <div className="text-xs text-muted-foreground text-center py-5 select-none text-balance">
+              No exclusions configured. All files will be uploaded.
+            </div>
+          ) : (
+            localPatterns.map((pattern, index) => {
+              const isEditing = editingIndex === index;
+              return (
+                <div
+                  key={pattern + "-" + index}
+                  className="flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-muted/50 dark:hover:bg-muted/30 group/row transition-colors duration-300"
+                >
+                  {isEditing ? (
+                    <Input
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      className="h-8 text-xs"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveEdit(index);
+                        } else if (e.key === "Escape") {
+                          setEditingIndex(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="text-sm truncate select-all">{pattern}</span>
+                  )}
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isEditing ? (
+                      <>
+                        <Button
+                          key="save"
+                          size="icon"
+                          variant="ghost"
+                          className="text-emerald-500 hover:bg-emerald-500/10"
+                          onClick={() => handleSaveEdit(index)}
+                        >
+                          <Check />
+                        </Button>
+                        <Button
+                          key="cancel"
+                          size="icon"
+                          variant="ghost"
+                          className="text-muted-foreground hover:bg-muted"
+                          onClick={() => setEditingIndex(null)}
+                        >
+                          <X />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          key="edit"
+                          size="icon"
+                          variant="ghost"
+                          className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted"
+                          onClick={() => handleStartEdit(index)}
+                        >
+                          <Pencil/>
+                        </Button>
+                        <Button
+                          key="delete"
+                          size="icon"
+                          variant="ghost"
+                          className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemove(index)}
+                        >
+                          <Trash2/>
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+          </div>
+        </ScrollArea>
+
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row items-center justify-center sm:justify-end w-full">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleRestore}
+            disabled={saving}
+            className="w-full sm:w-fit"
+          >
+            <RotateCcw />
+            Restore Defaults
+          </Button>
+
+          <div className="flex items-center gap-2 w-full sm:w-fit">
+            <Button
+              type="button"
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="flex-1 sm:flex-none"
+            >
+              {saving ? <Spinner /> : "Save"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

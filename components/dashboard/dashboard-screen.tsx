@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
-
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/shared/user-menu";
 import { DashboardActions } from "./dashboard-actions";
@@ -19,6 +17,7 @@ import {
   deleteRoomAction,
   leaveRoomAction,
 } from "@/server/rooms/actions";
+import BrandTextLogo from "../ui/brand-text-logo";
 
 interface DashboardScreenProps {
   initialMyRooms: Room[];
@@ -76,9 +75,8 @@ export function DashboardScreen({
       router.refresh();
     } catch (error) {
       setMyRooms(previousRooms);
-      toast.error(
-        error instanceof Error ? error.message : "Unable to create room."
-      );
+      console.error("Failed to create room:", error);
+      toast.error("Failed to create room. Please try again.");
     } finally {
       setIsCreating(false);
     }
@@ -105,9 +103,8 @@ export function DashboardScreen({
       router.refresh();
     } catch (error) {
       setJoinedRooms(previousRooms);
-      toast.error(
-        error instanceof Error ? error.message : "Unable to join room."
-      );
+      console.error("Failed to join room:", error);
+      toast.error("Failed to join room. Please try again.");
     } finally {
       setIsJoining(false);
     }
@@ -181,18 +178,7 @@ export function DashboardScreen({
       <div className="flex flex-col mx-auto sm:max-w-3xl w-full p-3 sm:py-8 sm:px-5">
         {/* Header */}
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-8 sm:size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <FolderOpen className="size-4 sm:size-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">Drop</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Private cross-device transfer
-              </p>
-            </div>
-          </div>
-          
+          <BrandTextLogo />
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <UserMenu user={currentUser} />

@@ -6,6 +6,7 @@ import type { RoomEvent } from "@/types/rooms";
 
 export function useRoomEvents(
   roomId: string,
+  initialEventId: number,
   onEvent: (event: RoomEvent) => void,
   onPresence?: (userIds: string[]) => void,
 ) {
@@ -19,7 +20,7 @@ export function useRoomEvents(
   });
 
   useEffect(() => {
-    lastEventIdRef.current = 0;
+    lastEventIdRef.current = initialEventId;
     let eventSource: EventSource | null = null;
     let reconnectTimeoutId: NodeJS.Timeout | null = null;
     let isClosed = false;
@@ -69,5 +70,5 @@ export function useRoomEvents(
         clearTimeout(reconnectTimeoutId);
       }
     };
-  }, [roomId]);
+  }, [roomId, initialEventId]);
 }

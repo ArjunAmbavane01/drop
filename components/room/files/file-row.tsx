@@ -1,7 +1,7 @@
 "use client";
 
 import { EncryptedImage } from "./encrypted-image";
-import { Download, File, Pencil, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { FileItem as AnimateFileItem } from "@/components/animate-ui/components/radix/files";
-import { FileIconMap } from "../file-icons";
+import { FileIcon } from "../file-icons";
 import { cn } from "@/lib/utils";
 
 interface FileRowProps {
@@ -35,9 +35,6 @@ export function FileRow({
   isSelected = false,
   onToggleSelect,
 }: FileRowProps) {
-  const ext = file.fileName.split(".").pop()?.toLowerCase() || "";
-  const Icon = FileIconMap[ext] || File;
-
   const ItemIcon = () => (
     <div
       className="size-8 flex items-center justify-center relative select-none shrink-0"
@@ -80,7 +77,10 @@ export function FileRow({
             className="size-8 rounded object-cover border border-border/60"
           />
         ) : (
-          <Icon className="size-5 text-muted-foreground" />
+          <FileIcon
+            fileName={file.fileName}
+            className="size-5 text-muted-foreground"
+          />
         )}
       </div>
     </div>
@@ -89,7 +89,7 @@ export function FileRow({
   return (
     <AnimateFileItem
       icon={ItemIcon}
-      className={cn("w-full transition-colors cursor-pointer", isSelected && "bg-muted/50 rounded-lg")}
+      className={cn("w-full transition-colors cursor-pointer")}
     >
       <div
         className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3 cursor-pointer select-none"
@@ -99,8 +99,8 @@ export function FileRow({
           }
         }}
       >
-        <div className="space-y-0.5 min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground leading-snug" title={file.fileName}>{file.fileName}</p>
+        <div className="space-y-0.5 min-w-0 flex-1 pb-0.5">
+          <p className="truncate text-sm font-medium text-foreground leading-normal" title={file.fileName}>{file.fileName}</p>
           <p className="text-xs text-muted-foreground leading-normal">
             {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
           </p>

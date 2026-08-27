@@ -216,6 +216,39 @@ export async function decryptChunk(
   return new Uint8Array(decrypted);
 }
 
+export async function encryptFileToBlob(
+  file: File,
+  fileKey: CryptoKey,
+  fileId: string
+): Promise<Blob> {
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
+  const encryptedChunks: Uint8Array[] = [];
+  let offset = 0;
+  let chunkIndex = 0;
+
+  while (offset < file.size || (file.size === 0 && chunkIndex === 0)) {
+    const slice = file.slice(offset, offset + CHUNK_SIZE);
+    const arrayBuffer = await slice.arrayBuffer();
+    const chunkData = new Uint8Array(arrayBuffer);
+
+    const encrypted = await encryptChunk(
+      chunkData,
+      fileKey,
+      fileId,
+      chunkIndex,
+      totalChunks
+    );
+    encryptedChunks.push(encrypted);
+
+    chunkIndex++;
+    offset += CHUNK_SIZE;
+  }
+
+  return new Blob(encryptedChunks as unknown as BlobPart[], {
+    type: file.type || "application/octet-stream",
+  });
+}
+
 export async function getClientDeviceKey() {
   const deviceId = getOrCreateDeviceId();
   const keyPair = await getStoredKeyPair(deviceId);

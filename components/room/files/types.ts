@@ -4,25 +4,32 @@ export type UploadGroup = {
   id: string;
   name: string;
   type: "file" | "folder";
+  fileCount?: number;
+  totalBytes?: number;
   files: {
     file: File;
     relativePath: string;
   }[];
+  skippedCount?: number;
+  includeExcluded?: boolean;
 };
 
 export type UploadState = {
   id: string;
   name: string;
   type: "file" | "folder";
-  status: "uploading" | "complete" | "error";
+  status: "preparing" | "uploading" | "complete" | "error";
   progress: number;
   totalBytes: number;
   uploadedBytes: number;
+  fileCount?: number;
   error?: string;
   activeRequests: XMLHttpRequest[];
   abortControllers?: AbortController[];
   group: UploadGroup;
 };
+
+export type UploadMode = "persistent" | "direct";
 
 export interface TreeNode {
   name: string;

@@ -30,7 +30,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useState } from "react";
+import { Spinner } from "../ui/spinner";
 
 export function RoomHeader({
   room,
@@ -38,6 +40,7 @@ export function RoomHeader({
   isOwner,
   onLeave,
   onClearRoom,
+  isClearing,
   onlineUserIds = [],
   currentUserId,
 }: {
@@ -45,23 +48,26 @@ export function RoomHeader({
   members: RoomMember[];
   isOwner: boolean;
   onLeave: () => void;
-  onClearRoom: () => void;
+  onClearRoom: () => Promise<void>;
+  isClearing?: boolean;
   onlineUserIds?: string[];
   currentUserId?: string;
 }) {
-  const router = useRouter();
+
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
   return (
-    <header className="flex items-center justify-between gap-2 sm:gap-4 pb-4 shrink-0">
+    <header className="flex items-center justify-between gap-2 sm:gap-4 shrink-0">
       {/* Left side: Back button & Room Details */}
-      <div className="flex items-center gap-3 sm:gap-8 min-w-0">
+      <div className="flex items-center gap-3 sm:gap-5">
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
+                render={<Link href="/" prefetch={true} />}
+                nativeButton={false}
                 size="icon-sm"
                 variant={"outline"}
-                onClick={() => { router.push("/") }}
                 aria-label="Back"
               >
                 <ArrowLeft />
@@ -71,7 +77,7 @@ export function RoomHeader({
           <TooltipContent>Back</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <h1 className="font-semibold text-foreground truncate text-sm sm:text-base">
+          <h1 className="font-semibold text-foreground truncate text-base">
             {room.name}
           </h1>
           <RoomCodeCopy code={room.roomCode} />
@@ -120,7 +126,7 @@ export function RoomHeader({
         <ThemeToggle />
 
         {isOwner ? (
-          <AlertDialog>
+          <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
             <AlertDialogTrigger
               render={
                 <Button
@@ -144,10 +150,17 @@ export function RoomHeader({
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={onClearRoom}
+                  onClick={async () => {
+                    await onClearRoom();
+                    setClearDialogOpen(false);
+                  }}
                   variant={"destructive"}
                 >
-                  Clear room
+                  {
+                    isClearing ? (
+                      <><Spinner /> Clearing</>
+                    ) : "Clear room"
+                  }
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

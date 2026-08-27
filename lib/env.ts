@@ -39,4 +39,10 @@ export const env = {
   get upstashRedisRestToken() {
     return readEnvValue("UPSTASH_REDIS_REST_TOKEN");
   },
+  get directSignalingSecret() {
+    return readEnvValue("DIRECT_SIGNALING_SECRET");
+  },
+  get directSignalingUrl() {
+    return readEnvValue("DIRECT_SIGNALING_URL");
+  },
 };

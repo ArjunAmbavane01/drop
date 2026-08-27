@@ -65,30 +65,38 @@ const AnimatedInput = forwardRef<HTMLInputElement, AnimatedInputProps>(
       if (shouldReduceMotion) {
         return {};
       }
+
       if (isFloating) {
         return {
-          borderColor: "var(--color-brand)",
-          color: "var(--color-brand)",
+          borderColor: "hsl(var(--background))",
+          color: "hsl(var(--foreground))",
           scale: 0.85,
           y: -24,
         };
       }
-      return { color: "#6b7280", scale: 1, y: 0 };
+
+      return {
+        color: "hsl(var(--muted-foreground))",
+        scale: 1,
+        y: 0,
+      };
     };
 
     const getLabelStyle = () => {
       if (!shouldReduceMotion) {
         return {};
       }
+
       if (isFloating) {
         return {
-          borderColor: "var(--color-brand)",
-          color: "var(--color-brand)",
+          borderColor: "hsl(var(--background))",
+          color: "hsl(var(--foreground))",
           transform: "translateY(-24px) scale(0.85)",
         };
       }
+
       return {
-        color: "#6b7280",
+        color: "hsl(var(--muted-foreground))",
         transform: "translateY(0) scale(1)",
       };
     };
