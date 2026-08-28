@@ -134,7 +134,9 @@ export function RoomDashboard({
             files: [],
           };
         case "member.joined":
-          void syncMissingFileKeys(snapshot.room.id, getMissingWrapsAction, uploadWrappedKeysAction);
+          if (snapshot.files.length > 0) {
+            void syncMissingFileKeys(snapshot.room.id, getMissingWrapsAction, uploadWrappedKeysAction);
+          }
           return previous.members.some((member) => member.id === event.payload.member.id)
             ? previous
             : { ...previous, members: [...previous.members, event.payload.member] };
@@ -147,7 +149,7 @@ export function RoomDashboard({
           return previous;
       }
     });
-  }, [snapshot.room.id]);
+  }, [snapshot.room.id, snapshot.files.length]);
 
   useRoomEvents(snapshot.room.id, snapshot.lastEventId, handleEvent, setOnlineUserIds);
 
@@ -155,13 +157,15 @@ export function RoomDashboard({
     async function initE2ee() {
       try {
         await ensureDeviceKeyRegistered(registerPublicKeyAction);
-        await syncMissingFileKeys(snapshot.room.id, getMissingWrapsAction, uploadWrappedKeysAction);
+        if (snapshot.files.length > 0) {
+          await syncMissingFileKeys(snapshot.room.id, getMissingWrapsAction, uploadWrappedKeysAction);
+        }
       } catch (err) {
         console.error("Failed to initialize E2EE keys:", err);
       }
     }
     void initE2ee();
-  }, [snapshot.room.id]);
+  }, [snapshot.room.id, snapshot.files.length]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -366,96 +370,77 @@ export function RoomDashboard({
 
           {/* Panel display */}
           <div className="flex-1 flex flex-col justify-stretch pt-2 min-h-0">
-            <AnimatePresence mode="wait">
-              {activeTab === "text" ? (
-                <motion.div
-                  key="text-tab"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.15, ease: "easeInOut" }}
-                  className="flex-1 flex flex-col min-h-0"
-                >
-                  <QuickTextPanel
-                    value={textValue}
-                    onChange={handleTextChange}
-                  />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="files-tab"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.15, ease: "easeInOut" }}
-                  className="flex-1 flex flex-col min-h-0"
-                >
-                  <FilesPanel
-                    roomId={snapshot.room.id}
-                    files={snapshot.files}
-                    directMode={directTransfer.directMode}
-                    directConnection={directTransfer.pendingConnection}
-                    onDirectGroup={directTransfer.handleDirectGroup}
-                    onDirectCancel={directTransfer.handleDirectCancel}
-                    onRetrySentTransfer={directTransfer.retrySentTransfer}
-                    receivedTransfers={directTransfer.receivedTransfers}
-                    sentTransfers={directTransfer.sentTransfers}
-                    onFilesRefresh={(files) =>
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files,
-                      }))
-                    }
-                    onFileRename={(fileId, fileName) =>
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files: previous.files.map((file) =>
-                          file.id === fileId ? { ...file, fileName } : file,
-                        ),
-                      }))
-                    }
-                    onFileDelete={(fileId) =>
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files: previous.files.filter((file) => file.id !== fileId),
-                      }))
-                    }
-                    onFolderRename={(uploadId, name) =>
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files: previous.files.map((file) =>
-                          file.uploadId === uploadId ? { ...file, uploadName: name } : file,
-                        ),
-                      }))
-                    }
-                    onFolderDelete={(uploadId) =>
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files: previous.files.filter((file) => file.uploadId !== uploadId),
-                      }))
-                    }
-                    onBulkDelete={(deletedFileIds, deletedFolderIds) => {
-                      const fileIdSet = new Set(deletedFileIds);
-                      const folderIdSet = new Set(deletedFolderIds);
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files: previous.files.filter(
-                          (file) =>
-                            !fileIdSet.has(file.id) &&
-                            (!file.uploadId || !folderIdSet.has(file.uploadId))
-                        ),
-                      }));
-                    }}
-                    onRestoreFiles={(restoredFiles) => {
-                      setSnapshot((previous) => ({
-                        ...previous,
-                        files: restoredFiles,
-                      }));
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div className={activeTab === "text" ? "flex-1 flex flex-col min-h-0" : "hidden flex-1 flex-col min-h-0"}>
+              <QuickTextPanel
+                value={textValue}
+                onChange={handleTextChange}
+              />
+            </div>
+            <div className={activeTab === "files" ? "flex-1 flex flex-col min-h-0" : "hidden flex-1 flex-col min-h-0"}>
+              <FilesPanel
+                roomId={snapshot.room.id}
+                files={snapshot.files}
+                directMode={directTransfer.directMode}
+                directConnection={directTransfer.pendingConnection}
+                onDirectGroup={directTransfer.handleDirectGroup}
+                onDirectCancel={directTransfer.handleDirectCancel}
+                onRetrySentTransfer={directTransfer.retrySentTransfer}
+                receivedTransfers={directTransfer.receivedTransfers}
+                sentTransfers={directTransfer.sentTransfers}
+                onFilesRefresh={(files) =>
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files,
+                  }))
+                }
+                onFileRename={(fileId, fileName) =>
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files: previous.files.map((file) =>
+                      file.id === fileId ? { ...file, fileName } : file,
+                    ),
+                  }))
+                }
+                onFileDelete={(fileId) =>
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files: previous.files.filter((file) => file.id !== fileId),
+                  }))
+                }
+                onFolderRename={(uploadId, name) =>
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files: previous.files.map((file) =>
+                      file.uploadId === uploadId ? { ...file, uploadName: name } : file,
+                    ),
+                  }))
+                }
+                onFolderDelete={(uploadId) =>
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files: previous.files.filter((file) => file.uploadId !== uploadId),
+                  }))
+                }
+                onBulkDelete={(deletedFileIds, deletedFolderIds) => {
+                  const fileIdSet = new Set(deletedFileIds);
+                  const folderIdSet = new Set(deletedFolderIds);
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files: previous.files.filter(
+                      (file) =>
+                        !fileIdSet.has(file.id) &&
+                        (!file.uploadId || !folderIdSet.has(file.uploadId))
+                    ),
+                  }));
+                }}
+                onRestoreFiles={(restoredFiles) => {
+                  setSnapshot((previous) => ({
+                    ...previous,
+                    files: restoredFiles,
+                  }));
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -29,7 +29,7 @@ type FilesProps = FilesPrimitiveProps;
 
 function Files({ className, children, ...props }: FilesProps) {
   return (
-    <FilesPrimitive className={cn('p-2 w-full', className)} {...props}>
+    <FilesPrimitive className={cn('w-full', className)} {...props}>
       <FilesHighlightPrimitive className="bg-muted/40 rounded-lg pointer-events-none">
         {children}
       </FilesHighlightPrimitive>

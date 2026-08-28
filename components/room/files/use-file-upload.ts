@@ -7,6 +7,7 @@ import {
   preValidateUploadAction,
   getRoomPublicKeysAction,
 } from "@/server/rooms/actions";
+import { getUserFriendlyErrorMessage } from "@/lib/utils";
 import type { CompleteUploadInput } from "@/lib/validators";
 import { LIMITS } from "@/lib/limits";
 import { compileExclusionMatcher } from "@/lib/exclusions";
@@ -154,7 +155,7 @@ export function useFileUpload(
         let changed = false;
         const next = prev.map((upload) => {
           const group = byId.get(upload.id);
-      if (!group || upload.status !== "preparing") return upload;
+          if (!group || upload.status !== "preparing") return upload;
 
           const totalBytes = group.totalBytes ?? upload.totalBytes;
           const fileCount = group.fileCount ?? upload.fileCount;
@@ -424,13 +425,13 @@ export function useFileUpload(
       const wasAborted = activeRequests.some((xhr) => xhr.readyState === 0 || xhr.status === 0);
       if (wasAborted) return;
 
-      const errorMessage = error instanceof Error ? error.message : "Upload failed";
+      const errorMessage = getUserFriendlyErrorMessage(error, "Upload failed");
       setUploads((prev) =>
         prev.map((u) =>
           u.id === group.id ? { ...u, status: "error", error: errorMessage } : u,
         ),
       );
-      toast.error(`Upload failed for ${group.name}`);
+      toast.error(getUserFriendlyErrorMessage(error, `Upload failed for ${group.name}`));
     }
   }
 

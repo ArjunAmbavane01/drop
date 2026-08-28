@@ -1048,38 +1048,46 @@ export async function uploadWrappedKeysAction(
 }
 
 export async function getFileDownloadKeyAction(fileId: string, deviceId: string) {
-  const session = await requireRequestSession();
-  const currentUserId = session.user.id;
+  try {
+    const session = await requireRequestSession();
+    const currentUserId = session.user.id;
 
-  const [file] = await getDb()
-    .select({ roomId: uploadedFiles.roomId })
-    .from(uploadedFiles)
-    .where(eq(uploadedFiles.id, fileId))
-    .limit(1);
+    const [file] = await getDb()
+      .select({ roomId: uploadedFiles.roomId })
+      .from(uploadedFiles)
+      .where(eq(uploadedFiles.id, fileId))
+      .limit(1);
 
-  if (!file) {
-    throw new Error("File not found.");
-  }
+    if (!file) {
+      throw new Error("File not found.");
+    }
 
-  await requireRoomAccess(file.roomId, currentUserId);
+    await requireRoomAccess(file.roomId, currentUserId);
 
-  const publicKeyId = `${currentUserId}:${deviceId}`;
-  const [wrap] = await getDb()
-    .select({ encryptedKey: fileKeys.encryptedKey })
-    .from(fileKeys)
-    .where(
-      and(
-        eq(fileKeys.fileId, fileId),
-        eq(fileKeys.publicKeyId, publicKeyId)
+    const publicKeyId = `${currentUserId}:${deviceId}`;
+    const [wrap] = await getDb()
+      .select({ encryptedKey: fileKeys.encryptedKey })
+      .from(fileKeys)
+      .where(
+        and(
+          eq(fileKeys.fileId, fileId),
+          eq(fileKeys.publicKeyId, publicKeyId)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  if (!wrap) {
-    throw new Error("No wrapped key found for this device.");
+    if (!wrap) {
+      throw new Error("No wrapped key found for this device.");
+    }
+
+    return { encryptedKey: wrap.encryptedKey };
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("Failed query:") || error.message.includes("select \""))) {
+      console.error("Database query error in getFileDownloadKeyAction:", error);
+      throw new Error("Failed to retrieve file key.");
+    }
+    throw error;
   }
-
-  return { encryptedKey: wrap.encryptedKey };
 }
 
 export async function getUserExclusionsAction() {

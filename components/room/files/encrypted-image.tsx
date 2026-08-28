@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Image, { type ImageProps } from "next/image";
-import { Loader2, ImageIcon } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 import type { RoomFile } from "@/types/rooms";
 import { getClientDeviceKey, unwrapFileKey, decryptChunk, CHUNK_SIZE, OVERHEAD_PER_CHUNK } from "@/lib/e2ee";
 import { getFileDownloadKeyAction } from "@/server/rooms/actions";
+import { Spinner } from "@/components/ui/spinner";
 
 // Global cache for decrypted thumbnail URLs: fileId -> blobUrl
 const decryptedCache = new Map<string, string>();
-
 interface EncryptedImageProps extends Omit<ImageProps, "src" | "alt"> {
   file: RoomFile;
 }
@@ -136,7 +136,7 @@ export function EncryptedImage({ file, ...props }: EncryptedImageProps) {
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center bg-muted/30 border border-border/60 rounded" style={{ width: props.width, height: props.height }}>
-        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        <Spinner />
       </div>
     );
   }
@@ -144,7 +144,7 @@ export function EncryptedImage({ file, ...props }: EncryptedImageProps) {
   if (status === "error" || !src) {
     return (
       <div className="flex items-center justify-center bg-muted/30 border border-border/60 rounded text-muted-foreground" style={{ width: props.width, height: props.height }}>
-        <ImageIcon className="h-4.5 w-4.5" />
+        <ImageIcon className="size-5" />
       </div>
     );
   }

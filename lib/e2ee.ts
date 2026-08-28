@@ -263,12 +263,20 @@ export async function ensureDeviceKeyRegistered(
 ) {
   const deviceId = getOrCreateDeviceId();
   let keyPair = await getStoredKeyPair(deviceId);
+  let isNew = false;
   if (!keyPair) {
     keyPair = await generateDeviceKeyPair();
     await storeKeyPair(deviceId, keyPair);
+    isNew = true;
   }
-  const spki = await exportPublicKeySpki(keyPair.publicKey);
-  await registerPublicKeyAction(deviceId, spki);
+  const regKey = `drop-device-registered:${deviceId}`;
+  if (isNew || typeof window !== "undefined" && localStorage.getItem(regKey) !== "true") {
+    const spki = await exportPublicKeySpki(keyPair.publicKey);
+    await registerPublicKeyAction(deviceId, spki);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(regKey, "true");
+    }
+  }
   return { deviceId, keyPair };
 }
 

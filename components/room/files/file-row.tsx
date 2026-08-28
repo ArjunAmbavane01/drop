@@ -94,9 +94,7 @@ export function FileRow({
       <div
         className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3 cursor-pointer select-none"
         onClick={(e) => {
-          if (onToggleSelect) {
-            onToggleSelect(file.id, e.shiftKey);
-          }
+          if (onToggleSelect) onToggleSelect(file.id, e.shiftKey);
         }}
       >
         <div className="space-y-0.5 min-w-0 flex-1 pb-0.5">
