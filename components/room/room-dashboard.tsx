@@ -152,7 +152,6 @@ export function RoomDashboard({
   }, [snapshot.room.id, snapshot.files.length]);
 
   useRoomEvents(snapshot.room.id, snapshot.lastEventId, handleEvent, setOnlineUserIds);
-
   useEffect(() => {
     async function initE2ee() {
       try {
