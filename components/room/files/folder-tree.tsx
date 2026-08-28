@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { Download, File, Pencil, Trash2 } from "lucide-react";
+import { EncryptedImage } from "./encrypted-image";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
@@ -114,9 +114,8 @@ export function FolderTree({
               )}
               >
               {file.thumbnailUrl ? (
-                <Image
-                  src={file.thumbnailUrl}
-                  alt={file.fileName}
+                <EncryptedImage
+                  file={file}
                   width={24}
                   height={24}
                   className="size-6 rounded object-cover border border-border/60"

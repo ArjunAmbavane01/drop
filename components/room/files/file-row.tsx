@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { Download, File, Pencil, Trash2 } from "lucide-react";
+import { EncryptedImage } from "./encrypted-image";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import type { RoomFile } from "@/types/rooms";
 import { Button } from "@/components/ui/button";
@@ -70,9 +70,8 @@ export function FileRow({
         )}
       >
         {file.thumbnailUrl ? (
-          <Image
-            src={file.thumbnailUrl}
-            alt={file.fileName}
+          <EncryptedImage
+            file={file}
             width={32}
             height={32}
             className="size-8 rounded object-cover border border-border/60"
@@ -95,9 +94,7 @@ export function FileRow({
       <div
         className="flex items-center justify-between w-full min-w-0 pointer-events-auto gap-3 cursor-pointer select-none"
         onClick={(e) => {
-          if (onToggleSelect) {
-            onToggleSelect(file.id, e.shiftKey);
-          }
+          if (onToggleSelect) onToggleSelect(file.id, e.shiftKey);
         }}
       >
         <div className="space-y-0.5 min-w-0 flex-1 pb-0.5">

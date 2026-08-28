@@ -53,12 +53,23 @@ export const updateTextSchema = z.object({
 // ==========================================
 
 export const completeUploadSchema = z.object({
+  // Client-generated UUID so we can insert wrapped keys before the DB record exists
+  fileId: z.string().uuid().optional(),
   objectKey: z.string().min(1),
   fileName: z.string().min(1).max(260),
   contentType: z.string().min(1).max(255).nullable(),
   sizeBytes: z.number().int().nonnegative(),
   uploadId: z.string().uuid().optional().nullable(),
   folderName: z.string().trim().min(1).max(260).optional().nullable(),
+  // E2EE: per-member wrapped file keys
+  wrappedKeys: z
+    .array(
+      z.object({
+        publicKeyId: z.string(),
+        encryptedKey: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export const renameFileSchema = z.object({

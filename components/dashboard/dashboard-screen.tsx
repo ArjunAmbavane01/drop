@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
-
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/shared/user-menu";
 import { DashboardActions } from "./dashboard-actions";
@@ -19,7 +17,7 @@ import {
   deleteRoomAction,
   leaveRoomAction,
 } from "@/server/rooms/actions";
-import Image from "next/image";
+import BrandTextLogo from "../ui/brand-text-logo";
 
 interface DashboardScreenProps {
   initialMyRooms: Room[];
@@ -180,17 +178,7 @@ export function DashboardScreen({
       <div className="flex flex-col mx-auto sm:max-w-3xl w-full p-3 sm:py-8 sm:px-5">
         {/* Header */}
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-0.5">
-            <Image
-              src={"/drop-logo.png"}
-              alt="Drop logo"
-              width={40}
-              height={40}
-              className="size-6 sm:size-8"
-            />
-            <h1 className="text-2xl font-semibold tracking-tighter font-logo text-blue-500">Drop</h1>
-          </div>
-
+          <BrandTextLogo />
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <UserMenu user={currentUser} />

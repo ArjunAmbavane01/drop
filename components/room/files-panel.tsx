@@ -13,12 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { validateExclusionPattern } from "@/lib/exclusions";
+import { getUserFriendlyErrorMessage } from "@/lib/utils";
 import {
   deleteFileAction,
   deleteFilesAction,
   deleteFolderAction,
   deleteFoldersAction,
   getFileDownloadUrlAction,
+  getFileDownloadKeyAction,
   renameFileAction,
   renameFolderAction,
   refreshRoomFilesAction,
@@ -27,6 +29,14 @@ import {
   restoreDefaultExclusionsAction,
 } from "@/server/rooms/actions";
 import type { RoomFile } from "@/types/rooms";
+import {
+  getClientDeviceKey,
+  unwrapFileKey,
+  decryptChunk,
+  CHUNK_SIZE,
+  OVERHEAD_PER_CHUNK,
+} from "@/lib/e2ee";
+import { Zip, ZipPassThrough } from "fflate";
 import { Files } from "@/components/animate-ui/components/radix/files";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -330,31 +340,205 @@ export function FilesPanel({
     }
   }
 
+  async function decryptStreamWithHandler(
+    encryptedStream: ReadableStream<Uint8Array>,
+    fileKey: CryptoKey,
+    fileId: string,
+    originalSize: number,
+    onChunk: (chunk: Uint8Array, isLast: boolean) => void | Promise<void>
+  ): Promise<void> {
+    const reader = encryptedStream.getReader();
+    let buffer = new Uint8Array(0);
+    let chunkIndex = 0;
+    const totalChunks = Math.ceil(originalSize / CHUNK_SIZE) || 1;
+    const encryptedChunkSize = CHUNK_SIZE + OVERHEAD_PER_CHUNK;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (value) {
+        const nextBuffer = new Uint8Array(buffer.length + value.length);
+        nextBuffer.set(buffer, 0);
+        nextBuffer.set(value, buffer.length);
+        buffer = nextBuffer;
+      }
+
+      while (buffer.length > 0) {
+        const expectedSize = chunkIndex < totalChunks - 1
+          ? encryptedChunkSize
+          : (originalSize - chunkIndex * CHUNK_SIZE) + OVERHEAD_PER_CHUNK;
+
+        if (buffer.length >= expectedSize) {
+          const encryptedChunk = buffer.slice(0, expectedSize);
+          const decrypted = await decryptChunk(
+            encryptedChunk,
+            fileKey,
+            fileId,
+            chunkIndex,
+            totalChunks
+          );
+
+          buffer = buffer.slice(expectedSize);
+          chunkIndex++;
+
+          const isLast = chunkIndex === totalChunks;
+          await onChunk(decrypted, isLast);
+        } else {
+          break;
+        }
+      }
+
+      if (done) {
+        break;
+      }
+    }
+  }
+
+  async function decryptStream(
+    encryptedStream: ReadableStream<Uint8Array>,
+    fileKey: CryptoKey,
+    fileId: string,
+    originalSize: number
+  ): Promise<Blob> {
+    const decryptedChunks: Uint8Array[] = [];
+    await decryptStreamWithHandler(
+      encryptedStream,
+      fileKey,
+      fileId,
+      originalSize,
+      (chunk) => {
+        decryptedChunks.push(chunk);
+      }
+    );
+    return new Blob(decryptedChunks as unknown as BlobPart[]);
+  }
+
   async function handleDownload(fileId: string) {
     try {
-      const { url, fileName } = await getFileDownloadUrlAction(fileId);
+      const file = files.find((f) => f.id === fileId);
+      if (!file) {
+        throw new Error("File not found.");
+      }
+
+      toast.info(`Preparing to download ${file.fileName}`);
+
+      const { url } = await getFileDownloadUrlAction(fileId);
+      const { deviceId, keyPair } = await getClientDeviceKey();
+      const { encryptedKey } = await getFileDownloadKeyAction(fileId, deviceId);
+      const fileKey = await unwrapFileKey(encryptedKey, keyPair.privateKey);
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to download encrypted file: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error("Response body is null.");
+      }
+
+      const decryptedBlob = await decryptStream(
+        response.body as unknown as ReadableStream<Uint8Array>,
+        fileKey,
+        file.id,
+        file.sizeBytes
+      );
+
+      const blobUrl = URL.createObjectURL(decryptedBlob);
       const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
+      link.href = blobUrl;
+      link.download = file.fileName.split("/").pop() || file.fileName;
       link.style.display = "none";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success("Download complete!");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to download file.");
+      toast.error(getUserFriendlyErrorMessage(error, "Unable to download file."));
     }
   }
 
   async function handleDownloadFolder(uploadId: string) {
+    const toastId = toast.loading("Preparing folder download");
     try {
+      const folderFiles = files.filter((f) => f.uploadId === uploadId);
+      if (folderFiles.length === 0) {
+        toast.error("Folder is empty or not found.", { id: toastId });
+        return;
+      }
+
+      const folderName = folderFiles[0].uploadName || "folder";
+      const { deviceId, keyPair } = await getClientDeviceKey();
+
+      const zipChunks: Uint8Array[] = [];
+      const zip = new Zip((err, chunk) => {
+        if (err) throw err;
+        zipChunks.push(chunk);
+      });
+
+      for (let i = 0; i < folderFiles.length; i++) {
+        const file = folderFiles[i];
+        toast.loading(
+          `Processing file ${i + 1} of ${folderFiles.length}: ${file.fileName.split("/").pop() || file.fileName}...`,
+          {
+            id: toastId,
+            className: "whitespace-nowrap",
+          }
+        );
+
+        const { url } = await getFileDownloadUrlAction(file.id);
+        const { encryptedKey } = await getFileDownloadKeyAction(file.id, deviceId);
+        const fileKey = await unwrapFileKey(encryptedKey, keyPair.privateKey);
+
+        const response = await fetch(url);
+        if (!response.ok || !response.body) {
+          throw new Error(`Failed to download file "${file.fileName}".`);
+        }
+
+        let zipPath = file.fileName;
+        if (!zipPath.startsWith(`${folderName}/`)) {
+          zipPath = `${folderName}/${zipPath}`;
+        }
+
+        const zipFile = new ZipPassThrough(zipPath);
+        zip.add(zipFile);
+
+        await decryptStreamWithHandler(
+          response.body as unknown as ReadableStream<Uint8Array>,
+          fileKey,
+          file.id,
+          file.sizeBytes,
+          (chunk, isLast) => {
+            zipFile.push(chunk, isLast);
+          }
+        );
+      }
+
+      zip.end();
+
+      const safeFolderName = folderName.replace(/[^a-zA-Z0-9_-]/g, "_") || "folder";
+      const zipBlob = new Blob(zipChunks as unknown as BlobPart[], {
+        type: "application/zip",
+      });
+
+      const blobUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");
-      link.href = `/api/folders/${uploadId}/download`;
+      link.href = blobUrl;
+      link.download = `${safeFolderName}.zip`;
       link.style.display = "none";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success("Folder download complete!", { id: toastId });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to download folder.");
+      console.error("Folder download error:", error);
+      toast.error(
+        getUserFriendlyErrorMessage(error, "Unable to download folder."),
+        { id: toastId }
+      );
     }
   }
 
@@ -561,8 +745,7 @@ export function FilesPanel({
           <EmptyFiles />
         ) : (
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ScrollArea className="h-full w-full">
-              <div className="pt-1 pb-3 pr-3 sm:pr-4 space-y-1">
+            <ScrollArea className="pt-1 pb-3 pr-3 sm:pr-4 space-y-1 h-full w-full">
                 <Files className="w-full p-0 bg-transparent space-y-1 border-none shadow-none">
                   {groupedItems.map((item) => {
                     if (item.type === "file") {
@@ -611,7 +794,6 @@ export function FilesPanel({
                     );
                   })}
                 </Files>
-              </div>
             </ScrollArea>
           </div>
         )}
@@ -825,86 +1007,86 @@ export function ExclusionsDialog({
 
         <ScrollArea className="h-64 border border-border/50 rounded-lg bg-muted/20 dark:bg-muted/10 p-1.5">
           <div className="space-y-1 pr-3">
-          {localPatterns.length === 0 ? (
-            <div className="text-xs text-muted-foreground text-center py-5 select-none text-balance">
-              No exclusions configured. All files will be uploaded.
-            </div>
-          ) : (
-            localPatterns.map((pattern, index) => {
-              const isEditing = editingIndex === index;
-              return (
-                <div
-                  key={pattern + "-" + index}
-                  className="flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-muted/50 dark:hover:bg-muted/30 group/row transition-colors duration-300"
-                >
-                  {isEditing ? (
-                    <Input
-                      value={editingValue}
-                      onChange={(e) => setEditingValue(e.target.value)}
-                      className="h-8 text-xs"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleSaveEdit(index);
-                        } else if (e.key === "Escape") {
-                          setEditingIndex(null);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <span className="text-sm truncate select-all">{pattern}</span>
-                  )}
-
-                  <div className="flex items-center gap-1.5 shrink-0">
+            {localPatterns.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-5 select-none text-balance">
+                No exclusions configured. All files will be uploaded.
+              </div>
+            ) : (
+              localPatterns.map((pattern, index) => {
+                const isEditing = editingIndex === index;
+                return (
+                  <div
+                    key={pattern + "-" + index}
+                    className="flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-muted/50 dark:hover:bg-muted/30 group/row transition-colors duration-300"
+                  >
                     {isEditing ? (
-                      <>
-                        <Button
-                          key="save"
-                          size="icon"
-                          variant="ghost"
-                          className="text-emerald-500 hover:bg-emerald-500/10"
-                          onClick={() => handleSaveEdit(index)}
-                        >
-                          <Check />
-                        </Button>
-                        <Button
-                          key="cancel"
-                          size="icon"
-                          variant="ghost"
-                          className="text-muted-foreground hover:bg-muted"
-                          onClick={() => setEditingIndex(null)}
-                        >
-                          <X />
-                        </Button>
-                      </>
+                      <Input
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        className="h-8 text-xs"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSaveEdit(index);
+                          } else if (e.key === "Escape") {
+                            setEditingIndex(null);
+                          }
+                        }}
+                      />
                     ) : (
-                      <>
-                        <Button
-                          key="edit"
-                          size="icon"
-                          variant="ghost"
-                          className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted"
-                          onClick={() => handleStartEdit(index)}
-                        >
-                          <Pencil/>
-                        </Button>
-                        <Button
-                          key="delete"
-                          size="icon"
-                          variant="ghost"
-                          className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10"
-                          onClick={() => handleRemove(index)}
-                        >
-                          <Trash2/>
-                        </Button>
-                      </>
+                      <span className="text-sm truncate select-all">{pattern}</span>
                     )}
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isEditing ? (
+                        <>
+                          <Button
+                            key="save"
+                            size="icon"
+                            variant="ghost"
+                            className="text-emerald-500 hover:bg-emerald-500/10"
+                            onClick={() => handleSaveEdit(index)}
+                          >
+                            <Check />
+                          </Button>
+                          <Button
+                            key="cancel"
+                            size="icon"
+                            variant="ghost"
+                            className="text-muted-foreground hover:bg-muted"
+                            onClick={() => setEditingIndex(null)}
+                          >
+                            <X />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            key="edit"
+                            size="icon"
+                            variant="ghost"
+                            className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-muted-foreground hover:bg-muted"
+                            onClick={() => handleStartEdit(index)}
+                          >
+                            <Pencil />
+                          </Button>
+                          <Button
+                            key="delete"
+                            size="icon"
+                            variant="ghost"
+                            className="opacity-0 group-hover/row:opacity-100 focus:opacity-100 text-destructive hover:bg-destructive/10"
+                            onClick={() => handleRemove(index)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
           </div>
         </ScrollArea>
 

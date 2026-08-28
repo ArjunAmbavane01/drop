@@ -2,12 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-import { completeUploadsAction, preValidateUploadAction } from "@/server/rooms/actions";
+import {
+  completeUploadsAction,
+  preValidateUploadAction,
+  getRoomPublicKeysAction,
+} from "@/server/rooms/actions";
+import { getUserFriendlyErrorMessage } from "@/lib/utils";
 import type { CompleteUploadInput } from "@/lib/validators";
 import { LIMITS } from "@/lib/limits";
 import { compileExclusionMatcher } from "@/lib/exclusions";
 import type { UploadGroup, UploadState } from "./types";
 import { getFilePath, groupFilesForUploadAsync } from "./file-tree-utils";
+import {
+  getEncryptedSize,
+  generateFileKey,
+  wrapFileKey,
+  importPublicKeySpki,
+  encryptFileToBlob,
+} from "@/lib/e2ee";
 import type { DirectQueueControls } from "@/lib/direct-transfer/types";
 import type { UploadMode } from "./types";
 
@@ -143,7 +155,7 @@ export function useFileUpload(
         let changed = false;
         const next = prev.map((upload) => {
           const group = byId.get(upload.id);
-      if (!group || upload.status !== "preparing") return upload;
+          if (!group || upload.status !== "preparing") return upload;
 
           const totalBytes = group.totalBytes ?? upload.totalBytes;
           const fileCount = group.fileCount ?? upload.fileCount;
@@ -183,8 +195,9 @@ export function useFileUpload(
 
   async function executeGroupUpload(group: UploadGroup) {
     if (cancelledUploadIdsRef.current.has(group.id)) return;
-    const totalBytes = group.totalBytes ?? group.files.reduce((sum, f) => sum + f.file.size, 0);
+    const totalBytes = group.totalBytes ?? group.files.reduce((sum, f) => sum + getEncryptedSize(f.file.size), 0);
     const activeRequests: XMLHttpRequest[] = [];
+    const abortControllers: AbortController[] = [];
 
     setUploads((prev) => {
       const existing = prev.find((u) => u.id === group.id);
@@ -201,6 +214,7 @@ export function useFileUpload(
               totalBytes,
               fileCount: group.fileCount ?? group.files.length,
               activeRequests: [],
+              abortControllers,
               group,
               error: undefined,
             }
@@ -218,6 +232,7 @@ export function useFileUpload(
             uploadedBytes: 0,
             fileCount: group.fileCount ?? group.files.length,
             activeRequests: [],
+            abortControllers,
             group,
           },
           ...prev,
@@ -228,6 +243,7 @@ export function useFileUpload(
     const fileProgresses = new Map<string, number>();
 
     try {
+      const { keys: roomKeys } = await getRoomPublicKeysAction(roomId);
       const filesToValidate = await buildValidationFiles(group);
 
       const validationResult = await preValidateUploadAction(roomId, filesToValidate, {
@@ -279,10 +295,33 @@ export function useFileUpload(
 
       const successfulUploads: CompleteUploadInput[] = [];
 
-      // Stream uploads through the backend so the browser never needs direct R2 access.
       await Promise.all(
         group.files.map(async (fileInfo) => {
           const { file, relativePath } = fileInfo;
+          const encryptedSize = getEncryptedSize(file.size);
+          const fileId = crypto.randomUUID();
+          const fileKey = await generateFileKey();
+
+          const wrappedKeys = [];
+          for (const keyInfo of roomKeys) {
+            try {
+              const rsaPubKey = await importPublicKeySpki(keyInfo.publicKey);
+              const encryptedKey = await wrapFileKey(fileKey, rsaPubKey);
+              wrappedKeys.push({
+                publicKeyId: keyInfo.id,
+                encryptedKey,
+              });
+            } catch (err) {
+              console.error("Failed to wrap key for member public key:", keyInfo.id, err);
+            }
+          }
+
+          const abortController = new AbortController();
+          abortControllers.push(abortController);
+
+          fileProgresses.set(relativePath, 0);
+
+          const encryptedBlob = await encryptFileToBlob(file, fileKey, fileId);
 
           const objectKey = await new Promise<string>((resolve, reject) => {
             const request = new XMLHttpRequest();
@@ -310,7 +349,7 @@ export function useFileUpload(
 
             request.addEventListener("load", () => {
               if (request.status >= 200 && request.status < 300) {
-                fileProgresses.set(relativePath, file.size);
+                fileProgresses.set(relativePath, encryptedSize);
                 try {
                   const response = JSON.parse(request.responseText || "{}");
                   if (typeof response?.objectKey === "string" && response.objectKey.length > 0) {
@@ -336,24 +375,26 @@ export function useFileUpload(
             request.open("POST", `/api/rooms/${roomId}/uploads`);
             request.setRequestHeader("X-File-Name", encodeURIComponent(relativePath));
             request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-            request.setRequestHeader("X-File-Size", String(file.size));
+            request.setRequestHeader("X-File-Size", String(encryptedSize));
+            request.setRequestHeader("X-Original-File-Size", String(file.size));
             if (validationResult.uploadToken) {
               request.setRequestHeader("X-Upload-Token", validationResult.uploadToken);
             }
             if (group.type === "folder") {
               request.setRequestHeader("X-Upload-Id", group.id);
             }
-            request.send(file);
+            request.send(encryptedBlob);
           });
 
-          // Upload was successful, add to database complete queue
           successfulUploads.push({
+            fileId,
             objectKey,
             fileName: relativePath,
             contentType: file.type || "application/octet-stream",
             sizeBytes: file.size,
             uploadId: group.type === "folder" ? group.id : undefined,
             folderName: group.type === "folder" ? group.name : undefined,
+            wrappedKeys,
           });
         }),
       );
@@ -384,13 +425,13 @@ export function useFileUpload(
       const wasAborted = activeRequests.some((xhr) => xhr.readyState === 0 || xhr.status === 0);
       if (wasAborted) return;
 
-      const errorMessage = error instanceof Error ? error.message : "Upload failed";
+      const errorMessage = getUserFriendlyErrorMessage(error, "Upload failed");
       setUploads((prev) =>
         prev.map((u) =>
           u.id === group.id ? { ...u, status: "error", error: errorMessage } : u,
         ),
       );
-      toast.error(`Upload failed for ${group.name}`);
+      toast.error(getUserFriendlyErrorMessage(error, `Upload failed for ${group.name}`));
     }
   }
 
@@ -502,6 +543,7 @@ export function useFileUpload(
       const item = prev.find((u) => u.id === id);
       if (item) {
         item.activeRequests.forEach((xhr) => xhr.abort());
+        item.abortControllers?.forEach((ac) => ac.abort());
       }
       return prev.filter((u) => u.id !== id);
     });

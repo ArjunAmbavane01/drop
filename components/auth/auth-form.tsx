@@ -6,7 +6,6 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock, Mail, User } from "lucide-react";
 import { toast } from "sonner";
-
 import AnimatedInput from "@/components/ui/smoothui/animated-input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,7 +16,7 @@ import {
   type SignInValues,
   type SignUpValues,
 } from "@/lib/validators";
-import Image from "next/image";
+import BrandTextLogo from "../ui/brand-text-logo";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -73,31 +72,13 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           {mode === "sign-up" ? (
             <div className="flex items-center">
               <span className="mr-2">Create your</span>
-              <Image
-                src="/drop-logo.png"
-                alt="Drop logo"
-                width={32}
-                height={32}
-                className="size-8"
-              />
-              <span className="font-logo font-semibold tracking-tight text-blue-500">
-                Drop
-              </span>
+              <BrandTextLogo />
               <span className="ml-2">account</span>
             </div>
           ) : (
             <div className="flex items-center">
               <span className="mr-2">Sign in to</span>
-              <Image
-                src="/drop-logo.png"
-                alt="Drop logo"
-                width={32}
-                height={32}
-                className="size-8"
-              />
-              <span className="font-logo font-semibold tracking-tight text-blue-500">
-                Drop
-              </span>
+              <BrandTextLogo />
             </div>
           )}
         </h1>

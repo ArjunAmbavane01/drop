@@ -25,6 +25,7 @@ export type UploadState = {
   fileCount?: number;
   error?: string;
   activeRequests: XMLHttpRequest[];
+  abortControllers?: AbortController[];
   group: UploadGroup;
 };
 

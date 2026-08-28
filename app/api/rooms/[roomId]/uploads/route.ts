@@ -23,6 +23,7 @@ export async function POST(
     const fileNameHeader = request.headers.get("x-file-name");
     const contentType = request.headers.get("content-type") || request.headers.get("x-content-type") || "application/octet-stream";
     const sizeBytesHeader = request.headers.get("x-file-size");
+    const originalSizeBytesHeader = request.headers.get("x-original-file-size");
     const uploadId = request.headers.get("x-upload-id");
 
     if (!fileNameHeader) {
@@ -45,6 +46,9 @@ export async function POST(
       return jsonError("Missing file size.", 400);
     }
 
+    // originalSizeBytes is used for upload token validation (token stores original sizes for quota)
+    const originalSizeBytes = originalSizeBytesHeader ? Number(originalSizeBytesHeader) : sizeBytes;
+
     const uploadToken = request.headers.get("x-upload-token");
     if (!uploadToken) {
       return jsonError("Upload token is required.", 400);
@@ -61,7 +65,7 @@ export async function POST(
     }
 
     const matchingFileIndex = tokenData.files.findIndex((f: { name: string; size: number }) => 
-      f.size === sizeBytes
+      f.size === originalSizeBytes
     );
     if (matchingFileIndex === -1) {
       return jsonError("Uploaded file size does not match authorization.", 400);
