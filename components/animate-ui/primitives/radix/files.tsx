@@ -21,6 +21,7 @@ import {
   type AccordionTriggerProps,
   type AccordionContentProps,
 } from '@/components/animate-ui/primitives/radix/accordion';
+import { cn } from '@/lib/utils';
 import { getStrictContext } from '@/lib/get-strict-context';
 import { useControlledState } from '@/hooks/use-controlled-state';
 
@@ -81,7 +82,6 @@ function Files({
         onValueChange={setOpenValue}
         style={{
           position: 'relative',
-          overflow: 'auto',
           ...style,
         }}
         {...props}
@@ -204,8 +204,8 @@ function FileIcon(props: FileIconProps) {
 
 type FileLabelProps = React.ComponentProps<'span'>;
 
-function FileLabel(props: FileLabelProps) {
-  return <span data-slot="file-label" {...props} />;
+function FileLabel({ className, ...props }: FileLabelProps) {
+  return <span data-slot="file-label" className={cn('min-w-0 flex-1', className)} {...props} />;
 }
 
 export {

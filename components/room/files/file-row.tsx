@@ -99,7 +99,7 @@ export function FileRow({
       >
         <div className="space-y-0.5 min-w-0 flex-1 pb-0.5">
           <p className="truncate text-sm font-medium text-foreground leading-normal" title={file.fileName}>{file.fileName}</p>
-          <p className="text-xs text-muted-foreground leading-normal">
+          <p className="truncate text-xs text-muted-foreground leading-normal">
             {formatFileSize(file.sizeBytes)} • {formatRelativeTime(new Date(file.uploadedAt))}
           </p>
         </div>

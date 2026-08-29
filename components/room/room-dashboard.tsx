@@ -262,8 +262,8 @@ export function RoomDashboard({
 
         <div className="flex flex-col flex-1 gap-2 min-h-0">
           {/* Action level / row containing Tabs and contextual actions */}
-          <div className="flex items-center justify-between gap-2 flex-wrap shrink-0">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2 shrink-0 min-w-0">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("text")}
@@ -301,7 +301,7 @@ export function RoomDashboard({
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
               {/* Contextual actions for Text tab */}
               {activeTab === "text" && (
                 <>
@@ -333,27 +333,30 @@ export function RoomDashboard({
 
               {
                 activeTab !== "text" && (directTransfer.pendingConnection?.status === "connected" ? (
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <Tooltip>
-                      <TooltipTrigger render={<span className="flex min-w-0 max-w-56 items-center gap-2 text-sm font-medium text-foreground sm:max-w-76" />}>
+                      <TooltipTrigger render={<span className="flex min-w-0 max-w-28 xs:max-w-36 sm:max-w-76 items-center gap-1.5 sm:gap-2 text-sm font-medium text-foreground cursor-pointer" />}>
                         <span className="size-1.5 shrink-0 rounded-full bg-emerald-600" />
                         <span className="truncate">{directTransfer.pendingConnection.device.name}</span>
                       </TooltipTrigger>
                       <TooltipContent>{directTransfer.pendingConnection.device.name}</TooltipContent>
                     </Tooltip>
-                    <Button variant="ghost" size="sm" onClick={directTransfer.disconnect} className="text-destructive bg-destructive/10 hover:bg-destructive/30 hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={directTransfer.disconnect} className="shrink-0 text-destructive bg-destructive/10 hover:bg-destructive/30 hover:text-destructive">
                       Disconnect
                     </Button>
                   </div>
                 ) : directTransfer.pendingConnection ? (
-                  <div className="flex items-center gap-3">
-                    <div className="flex min-w-0 max-w-64 items-center gap-2 text-sm text-muted-foreground">
-                      <Spinner className="size-3.5 shrink-0" />
-                      <span className="truncate">
-                        Connecting to {directTransfer.pendingConnection.device.name}
-                      </span>
-                    </div>
-                    <Button variant="destructive" size="sm" onClick={directTransfer.disconnect}>
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <Tooltip>
+                      <TooltipTrigger render={<div className="flex min-w-0 max-w-28 xs:max-w-36 sm:max-w-64 items-center gap-1.5 sm:gap-2 text-sm text-muted-foreground cursor-pointer" />}>
+                        <Spinner className="size-3.5 shrink-0" />
+                        <span className="truncate">
+                          Connecting to {directTransfer.pendingConnection.device.name}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Connecting to {directTransfer.pendingConnection.device.name}</TooltipContent>
+                    </Tooltip>
+                    <Button variant="destructive" size="sm" onClick={directTransfer.disconnect} className="shrink-0">
                       Cancel
                     </Button>
                   </div>

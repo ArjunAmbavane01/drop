@@ -75,7 +75,7 @@ function FolderTrigger({
                 />
               )}
               <FileLabelPrimitive
-                className={cn('text-sm', className)}
+                className={cn('text-sm min-w-0 flex-1', className)}
                 {...props}
               >
                 {children}
@@ -115,7 +115,7 @@ function FileItem({
         <FileIconPrimitive>
           <Icon className="size-5" />
         </FileIconPrimitive>
-        <FileLabelPrimitive className={cn('text-sm', className)} {...props}>
+        <FileLabelPrimitive className={cn('text-sm min-w-0 flex-1', className)} {...props}>
           {children}
         </FileLabelPrimitive>
       </FilePrimitive>
